@@ -15,10 +15,11 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <sonar.java.coveragePlugin>jacoco</sonar.java.coveragePlugin>
         <sonar.language>java</sonar.language>
-        <jacoco.version>0.8.8</jacoco.version>
-        <owasp.dependency.check.version>7.6.0</owasp.dependency.check.version>
-        <sonar-maven-plugin.version>3.9.1.2184</sonar-maven-plugin.version>
-        <spring-boot.version>3.1.0</spring-boot.version>
+        <jacoco.version>0.8.10</jacoco.version>
+        <owasp.dependency.check.version>8.4.0</owasp.dependency.check.version>
+        <sonar-maven-plugin.version>3.11.0.3922</sonar-maven-plugin.version>
+        <spring-boot.version>3.1.6</spring-boot.version>
+        <zap.client.version>1.11.0</zap.client.version>
     </properties>
 
     <parent>
@@ -48,7 +49,15 @@
         <dependency>
             <groupId>io.rest-assured</groupId>
             <artifactId>rest-assured</artifactId>
-            <version>5.3.0</version>
+            <version>5.3.2</version>
+            <scope>test</scope>
+        </dependency>
+        
+        <!-- ZAP Client (for programmatic scans) -->
+        <dependency>
+            <groupId>org.zaproxy</groupId>
+            <artifactId>zap-clientapi</artifactId>
+            <version>${zap.client.version}</version>
             <scope>test</scope>
         </dependency>
     </dependencies>
@@ -97,7 +106,7 @@
                 </executions>
             </plugin>
 
-            <!-- OWASP Dependency-Check (SCA) -->
+            <!-- OWASP Dependency-Check -->
             <plugin>
                 <groupId>org.owasp</groupId>
                 <artifactId>dependency-check-maven</artifactId>
@@ -111,53 +120,33 @@
                 <configuration>
                     <failBuildOnCVSS>8</failBuildOnCVSS>
                     <suppressionFile>${project.basedir}/suppressions.xml</suppressionFile>
-                    <format>HTML</format>
-                    <formats>HTML</formats>
+                    <formats>HTML,JSON</formats>
                     <skipProvidedScope>true</skipProvidedScope>
-                    <skipRuntimeScope>true</skipRuntimeScope>
                 </configuration>
             </plugin>
 
-            <!-- SonarCloud Scanner (SAST) -->
+            <!-- SonarCloud Scanner -->
             <plugin>
                 <groupId>org.sonarsource.scanner.maven</groupId>
                 <artifactId>sonar-maven-plugin</artifactId>
                 <version>${sonar-maven-plugin.version}</version>
             </plugin>
-
-            <!-- Enforce Maven Version -->
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-enforcer-plugin</artifactId>
-                <version>3.2.1</version>
-                <executions>
-                    <execution>
-                        <id>enforce-maven</id>
-                        <goals><goal>enforce</goal></goals>
-                        <configuration>
-                            <rules>
-                                <requireMavenVersion>
-                                    <version>[3.8.6,)</version>
-                                </requireMavenVersion>
-                            </rules>
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>
         </plugins>
     </build>
 
-    <!-- SonarCloud Quality Profile -->
     <profiles>
         <profile>
-            <id>sonar</id>
+            <id>ci</id>
             <activation>
-                <activeByDefault>true</activeByDefault>
+                <property>
+                    <name>env.CI</name>
+                </property>
             </activation>
             <properties>
                 <sonar.host.url>https://sonarcloud.io</sonar.host.url>
-                <sonar.organization>your-org-name</sonar.organization>
+                <sonar.organization>your-sonarcloud-org</sonar.organization>
                 <sonar.projectKey>devsecops-poc</sonar.projectKey>
+                <sonar.login>${env.SONAR_TOKEN}</sonar.login>
             </properties>
         </profile>
     </profiles>
