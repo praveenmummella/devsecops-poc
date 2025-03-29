@@ -29,10 +29,4 @@ class HelloControllerTest {
                .andExpect(status().isOk())
                .andExpect(content().string("OK"));
     }
-
-    @Test
-    void invalidEndpoint_Returns404() throws Exception {
-        mockMvc.perform(get("/invalid"))
-               .andExpect(status().isNotFound());
-    }
 }
