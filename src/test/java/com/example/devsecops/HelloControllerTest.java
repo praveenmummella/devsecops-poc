@@ -1,14 +1,21 @@
-@SpringBootTest(webEnvironment = WebEnvironment.DEFINED_PORT)  // Fixed port for DAST
-class HelloControllerTest {
-  
-  @LocalServerPort
-  private int port;  // Will use 5000 from application.properties
+package com.example.devsecops;
 
-  @Test
-  void healthCheck() {
-    given()
-      .port(port)
-      .when().get("/health")
-      .then().statusCode(200);
-  }
+import org.junit.jupiter.api.Test;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.web.server.LocalServerPort;
+import static io.restassured.RestAssured.given;
+
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+public class HelloControllerTest {
+
+    @LocalServerPort
+    private int port;
+
+    @Test
+    public void healthCheck() {
+        given()
+            .port(port)
+            .when().get("/health")
+            .then().statusCode(200);
+    }
 }
