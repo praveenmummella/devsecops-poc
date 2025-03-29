@@ -1,12 +1,18 @@
 package com.example.devsecops;
 
-import org.springframework.boot.SpringApplication;
-import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.junit.jupiter.api.Test;
+import org.springframework.boot.test.context.SpringBootTest;
 
-@SpringBootApplication
-public class DemoApplication {
+@SpringBootTest
+class DemoApplicationTest {
 
-    public static void main(String[] args) {
-        SpringApplication.run(DemoApplication.class, args);
+    @Test
+    void contextLoads() {
+        // Verify Spring context starts
+    }
+
+    @Test
+    void mainMethodRuns() {
+        DemoApplication.main(new String[]{});
     }
 }
