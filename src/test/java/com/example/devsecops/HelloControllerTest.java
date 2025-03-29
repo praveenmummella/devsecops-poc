@@ -1,21 +1,38 @@
 package com.example.devsecops;
 
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.web.server.LocalServerPort;
-import static io.restassured.RestAssured.given;
+import org.springframework.test.web.servlet.MockMvc;
 
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-public class HelloControllerTest {
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-    @LocalServerPort
-    private int port;
+@SpringBootTest
+@AutoConfigureMockMvc
+class HelloControllerTest {
+
+    @Autowired
+    private MockMvc mockMvc;
 
     @Test
-    public void healthCheck() {
-        given()
-            .port(port)
-            .when().get("/health")
-            .then().statusCode(200);
+    void helloEndpoint_ReturnsCorrectMessage() throws Exception {
+        mockMvc.perform(get("/hello"))
+               .andExpect(status().isOk())
+               .andExpect(content().string("Hello from DevSecOps POC!"));
+    }
+
+    @Test
+    void healthEndpoint_Returns200() throws Exception {
+        mockMvc.perform(get("/health"))
+               .andExpect(status().isOk())
+               .andExpect(content().string("OK"));
+    }
+
+    @Test
+    void invalidEndpoint_Returns404() throws Exception {
+        mockMvc.perform(get("/invalid"))
+               .andExpect(status().isNotFound());
     }
 }
