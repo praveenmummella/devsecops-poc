@@ -22,9 +22,6 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         
-        <!-- Spring/Cloud -->
-        <spring-cloud.version>2023.0.0</spring-cloud.version>
-        
         <!-- Test -->
         <rest-assured.version>5.3.2</rest-assured.version>
         
@@ -45,11 +42,6 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-actuator</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.cloud</groupId>
-            <artifactId>spring-cloud-starter-bootstrap</artifactId>
-            <version>${spring-cloud.version}</version>
         </dependency>
 
         <!-- Testing -->
@@ -78,14 +70,6 @@
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
-                <configuration>
-                    <excludes>
-                        <exclude>
-                            <groupId>org.projectlombok</groupId>
-                            <artifactId>lombok</artifactId>
-                        </exclude>
-                    </excludes>
-                </configuration>
             </plugin>
 
             <!-- JaCoCo -->
@@ -137,7 +121,6 @@
                 </executions>
                 <configuration>
                     <failBuildOnCVSS>7</failBuildOnCVSS>
-                    <suppressionFile>owasp-suppressions.xml</suppressionFile>
                 </configuration>
             </plugin>
 
@@ -158,25 +141,7 @@
                         -Dspring.profiles.active=test
                         -Djava.security.egd=file:/dev/./urandom
                     </argLine>
-                    <excludes>
-                        <exclude>**/*IT.java</exclude>
-                    </excludes>
                 </configuration>
-            </plugin>
-
-            <!-- Failsafe for IT -->
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-failsafe-plugin</artifactId>
-                <version>3.1.2</version>
-                <executions>
-                    <execution>
-                        <goals>
-                            <goal>integration-test</goal>
-                            <goal>verify</goal>
-                        </goals>
-                    </execution>
-                </executions>
             </plugin>
         </plugins>
     </build>
@@ -191,12 +156,6 @@
                 <sonar.host.url>https://sonarcloud.io</sonar.host.url>
                 <sonar.organization>praveenmummella</sonar.organization>
                 <sonar.projectKey>praveenmummella_devsecops-poc</sonar.projectKey>
-                <sonar.coverage.jacoco.xmlReportPaths>
-                    ${project.build.directory}/site/jacoco/jacoco.xml
-                </sonar.coverage.jacoco.xmlReportPaths>
-                <sonar.junit.reportPaths>
-                    ${project.build.directory}/surefire-reports
-                </sonar.junit.reportPaths>
             </properties>
         </profile>
     </profiles>
