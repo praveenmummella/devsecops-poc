@@ -1,0 +1,38 @@
+version: 0.2
+
+env:
+  variables:
+    SONAR_PROJECT_KEY: "devsecops-poc"  # Set in CodeBuild console
+
+phases:
+  install:
+    runtime-versions:
+      java: corretto17
+    commands:
+      - pip install --user zapcli  # Lightweight DAST tool
+
+  pre_build:
+    commands:
+      - mvn dependency:go-offline  # Cache dependencies
+
+  build:
+    commands:
+      - mvn clean package          # Build + JaCoCo coverage
+      - mvn dependency-check:check # OWASP SCA
+      - mvn sonar:sonar            # SAST (requires SONAR_TOKEN)
+
+  post_build:
+    commands:
+      # Start app for testing
+      - nohup java -jar target/*.jar --server.port=5000 &
+      - sleep 15
+      # Smoke test
+      - curl --fail http://localhost:5000/health || exit 1
+      # DAST scan (free-tier compatible)
+      - zap-cli quick-scan --self-contained http://localhost:5000
+
+artifacts:
+  files:
+    - 'target/*.jar'
+    - 'target/site/**/*'          # JaCoCo reports
+    - 'target/dependency-check-report.html'  # OWASP report
