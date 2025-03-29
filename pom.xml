@@ -10,15 +10,18 @@
     <name>devsecops-poc</name>
     <description>DevSecOps POC for AWS CodePipeline</description>
 
+    <!-- PROPERTIES MUST COME BEFORE PARENT SECTION -->
     <properties>
         <java.version>17</java.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <spring-boot.version>3.2.4</spring-boot.version>
+        
+        <!-- Security Tools Versions -->
         <sonar.java.coveragePlugin>jacoco</sonar.java.coveragePlugin>
         <sonar.language>java</sonar.language>
-        <jacoco.version>0.8.10</jacoco.version>
+        <jacoco.version>0.8.11</jacoco.version>
         <owasp.dependency.check.version>8.4.0</owasp.dependency.check.version>
         <sonar-maven-plugin.version>3.11.0.3922</sonar-maven-plugin.version>
-        <spring-boot.version>3.1.6</spring-boot.version>
         <zap.client.version>1.11.0</zap.client.version>
     </properties>
 
@@ -26,7 +29,7 @@
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
         <version>${spring-boot.version}</version>
-        <relativePath/>
+        <relativePath/> <!-- lookup parent from repository -->
     </parent>
 
     <dependencies>
@@ -53,7 +56,7 @@
             <scope>test</scope>
         </dependency>
         
-        <!-- ZAP Client (for programmatic scans) -->
+        <!-- ZAP Client (for DAST) -->
         <dependency>
             <groupId>org.zaproxy</groupId>
             <artifactId>zap-clientapi</artifactId>
@@ -121,7 +124,6 @@
                     <failBuildOnCVSS>8</failBuildOnCVSS>
                     <suppressionFile>${project.basedir}/suppressions.xml</suppressionFile>
                     <formats>HTML,JSON</formats>
-                    <skipProvidedScope>true</skipProvidedScope>
                 </configuration>
             </plugin>
 
@@ -136,16 +138,14 @@
 
     <profiles>
         <profile>
-            <id>ci</id>
+            <id>sonar</id>
             <activation>
-                <property>
-                    <name>env.CI</name>
-                </property>
+                <activeByDefault>true</activeByDefault>
             </activation>
             <properties>
                 <sonar.host.url>https://sonarcloud.io</sonar.host.url>
-                <sonar.organization>your-sonarcloud-org</sonar.organization>
-                <sonar.projectKey>devsecops-poc</sonar.projectKey>
+                <sonar.organization>praveenmummella</sonar.organization>
+                <sonar.projectKey>praveenmummella_devsecops-poc</sonar.projectKey>
                 <sonar.login>${env.SONAR_TOKEN}</sonar.login>
             </properties>
         </profile>
