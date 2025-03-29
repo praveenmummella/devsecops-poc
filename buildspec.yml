@@ -2,37 +2,55 @@ version: 0.2
 
 env:
   variables:
-    SONAR_PROJECT_KEY: "devsecops-poc"  # Set in CodeBuild console
+    SONAR_PROJECT_KEY: "devsecops-poc"
+    APP_PORT: "5000"
+    ZAP_VERSION: "2.12.0"
 
 phases:
   install:
     runtime-versions:
       java: corretto17
     commands:
-      - pip install --user zapcli  # Lightweight DAST tool
+      # Install ZAP CLI and dependencies
+      - pip install --user zapcli==1.7.0
+      - export PATH="$PATH:/root/.local/bin"
+      # Cache SonarCloud scanner
+      - wget -q https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-4.8.0.2856-linux.zip
+      - unzip -qq sonar-scanner-cli-*.zip -d /opt
+      - export PATH="$PATH:/opt/sonar-scanner-4.8.0.2856-linux/bin"
 
   pre_build:
     commands:
-      - mvn dependency:go-offline  # Cache dependencies
+      - mvn dependency:go-offline -B
 
   build:
     commands:
-      - mvn clean package          # Build + JaCoCo coverage
-      - mvn dependency-check:check # OWASP SCA
-      - mvn sonar:sonar            # SAST (requires SONAR_TOKEN)
+      # Build with security scans
+      - mvn -B clean verify sonar:sonar -Pci
+      # Generate dependency check report
+      - mvn -B dependency-check:check
 
   post_build:
     commands:
-      # Start app for testing
-      - nohup java -jar target/*.jar --server.port=5000 &
-      - sleep 15
+      # Start application
+      - nohup java -jar target/*.jar --server.port=$APP_PORT &
+      - sleep 10
+      
       # Smoke test
-      - curl --fail http://localhost:5000/health || exit 1
-      # DAST scan (free-tier compatible)
-      - zap-cli quick-scan --self-contained http://localhost:5000
+      - curl --retry 5 --retry-delay 5 --fail http://localhost:$APP_PORT/health || exit 1
+      
+      # Run ZAP baseline scan
+      - zap-cli --verbose quick-scan \
+          --spider \
+          --ajax-spider \
+          --recursive \
+          --report-html target/zap-report.html \
+          --report-md target/zap-report.md \
+          http://localhost:$APP_PORT
 
 artifacts:
   files:
     - 'target/*.jar'
-    - 'target/site/**/*'          # JaCoCo reports
-    - 'target/dependency-check-report.html'  # OWASP report
+    - 'target/site/**/*'
+    - 'target/*-report.*'
+  discard-paths: yes
