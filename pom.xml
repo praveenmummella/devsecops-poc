@@ -70,9 +70,17 @@
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <excludes>
+                        <exclude>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                        </exclude>
+                    </excludes>
+                </configuration>
             </plugin>
 
-            <!-- JaCoCo -->
+            <!-- Fixed JaCoCo Configuration -->
             <plugin>
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>
@@ -81,6 +89,10 @@
                     <execution>
                         <id>prepare-agent</id>
                         <goals><goal>prepare-agent</goal></goals>
+                        <configuration>
+                            <propertyName>jacoco.argLine</propertyName>
+                            <destFile>${project.build.directory}/jacoco.exec</destFile>
+                        </configuration>
                     </execution>
                     <execution>
                         <id>report</id>
@@ -131,17 +143,35 @@
                 <version>${sonar-maven-plugin.version}</version>
             </plugin>
 
-            <!-- Surefire -->
+            <!-- Updated Surefire Plugin -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>${surefire.version}</version>
                 <configuration>
                     <argLine>
+                        ${jacoco.argLine}
                         -Dspring.profiles.active=test
-                        -Djava.security.egd=file:/dev/./urandom
                     </argLine>
+                    <systemPropertyVariables>
+                        <java.security.egd>file:/dev/./urandom</java.security.egd>
+                    </systemPropertyVariables>
                 </configuration>
+            </plugin>
+
+            <!-- Failsafe for IT -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-failsafe-plugin</artifactId>
+                <version>3.1.2</version>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>integration-test</goal>
+                            <goal>verify</goal>
+                        </goals>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>
@@ -156,6 +186,9 @@
                 <sonar.host.url>https://sonarcloud.io</sonar.host.url>
                 <sonar.organization>praveenmummella</sonar.organization>
                 <sonar.projectKey>praveenmummella_devsecops-poc</sonar.projectKey>
+                <sonar.coverage.jacoco.xmlReportPaths>
+                    ${project.build.directory}/site/jacoco/jacoco.xml
+                </sonar.coverage.jacoco.xmlReportPaths>
             </properties>
         </profile>
     </profiles>
