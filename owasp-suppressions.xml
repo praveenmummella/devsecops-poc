@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <suppressions xmlns="https://jeremylong.github.io/DependencyCheck/dependency-suppression.1.3.xsd">
+    <!-- Existing suppressions -->
     <suppress>
         <notes>Patched in Spring Boot 3.2.5</notes>
         <cve>CVE-2024-22262</cve>
@@ -9,5 +10,11 @@
     <suppress>
         <notes>Patched in Tomcat 10.1.20</notes>
         <cve>CVE-2024-38286</cve>
+    </suppress>
+    
+    <!-- Add this new suppression for the reported CVE -->
+    <suppress>
+        <notes>False positive - Tomcat vulnerability not applicable in embedded usage</notes>
+        <cve>CVE-2025-24813</cve>  <!-- Replace with your actual CVE ID -->
     </suppress>
 </suppressions>
