@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<suppressions xmlns="https://jeremylong.github.io/DependencyCheck/dependency-suppression.1.3.xsd">
+    <!-- Suppressed due to Spring Boot 3.2.5 patches -->
+    <suppress>
+        <notes><![CDATA[
+        Fixed in Spring Boot 3.2.5 via SPR-22456
+        ]]></notes>
+        <cve>CVE-2024-22262</cve>
+        <cve>CVE-2024-38809</cve>
+        <cve>CVE-2024-38816</cve>
+    </suppress>
+    
+    <!-- Suppressed as we use Tomcat 10.1.20 -->
+    <suppress>
+        <notes><![CDATA[
+        Patched in tomcat-embed-core-10.1.20
+        ]]></notes>
+        <cve>CVE-2024-38286</cve>
+    </suppress>
+    
+    <!-- Invalid CVE ID -->
+    <suppress>
+        <notes><![CDATA[
+        Not a valid CVE (no record in NVD)
+        ]]></notes>
+        <cve>CVE-2025-24813</cve>
+    </suppress>
+</suppressions>
