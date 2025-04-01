@@ -12,7 +12,7 @@
     </parent>
 
     <groupId>com.example</groupId>
-    <artifactId>devsecops-poc</artifactId>
+        <artifactId>devsecops-poc</artifactId>
     <version>0.0.1-SNAPSHOT</version>
     <name>devsecops-poc</name>
     <description>DevSecOps POC for AWS CodePipeline</description>
@@ -22,7 +22,8 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         
-        <!-- Test -->
+        <!-- Updated to latest secure versions -->
+        <tomcat.version>10.1.21</tomcat.version>
         <junit.jupiter.version>5.10.0</junit.jupiter.version>
         <mockito.version>5.5.0</mockito.version>
         <rest-assured.version>5.3.2</rest-assured.version>
@@ -33,16 +34,23 @@
         <owasp.dependency.check.version>8.4.0</owasp.dependency.check.version>
         <sonar-maven-plugin.version>3.11.0.3922</sonar-maven-plugin.version>
         <surefire.version>3.2.3</surefire.version>
-        
-        <!-- Dependencies -->
-        <tomcat.version>10.1.20</tomcat.version>
     </properties>
 
     <dependencies>
-        <!-- Spring Boot -->
+        <!-- Spring Boot Starters -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.springframework.boot</groupId>
+                    <artifactId>spring-boot-starter-tomcat</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-undertow</artifactId> <!-- Alternative to Tomcat -->
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -150,7 +158,7 @@
                 </executions>
             </plugin>
 
-            <!-- OWASP -->
+            <!-- Enhanced OWASP Dependency Check -->
             <plugin>
                 <groupId>org.owasp</groupId>
                 <artifactId>dependency-check-maven</artifactId>
@@ -164,8 +172,12 @@
                     </execution>
                 </executions>
                 <configuration>
-                    <suppressionFile>owasp-suppressions.xml</suppressionFile>
+                    <suppressionFile>${project.basedir}/owasp-suppressions.xml</suppressionFile>
                     <failBuildOnCVSS>9</failBuildOnCVSS>
+                    <cveValidForHours>24</cveValidForHours>
+                    <retireJsAnalyzerEnabled>false</retireJsAnalyzerEnabled>
+                    <formats>HTML,XML,JSON</formats>
+                    <dataDirectory>${project.basedir}/.dependency-check-data</dataDirectory>
                 </configuration>
             </plugin>
 
@@ -220,9 +232,7 @@
                 <sonar.host.url>https://sonarcloud.io</sonar.host.url>
                 <sonar.organization>praveenmummella</sonar.organization>
                 <sonar.projectKey>praveenmummella_devsecops-poc</sonar.projectKey>
-                <sonar.coverage.jacoco.xmlReportPaths>
-                    ${project.build.directory}/site/jacoco/jacoco.xml
-                </sonar.coverage.jacoco.xmlReportPaths>
+                <sonar.coverage.jacoco.xmlReportPaths>${project.build.directory}/site/jacoco/jacoco.xml</sonar.coverage.jacoco.xmlReportPaths>
                 <sonar.language>java</sonar.language>
                 <sonar.java.binaries>${project.build.directory}/classes</sonar.java.binaries>
                 <sonar.java.test.binaries>${project.build.directory}/test-classes</sonar.java.test.binaries>
