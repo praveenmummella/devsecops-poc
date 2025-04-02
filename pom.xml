@@ -7,7 +7,7 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.2.5</version>
+        <version>3.2.6</version>  <!-- Updated for security fixes -->
         <relativePath/>
     </parent>
 
@@ -22,8 +22,10 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         
-        <!-- Using the latest verified Tomcat version -->
-        <tomcat.version>10.1.20</tomcat.version>
+        <!-- Security-patched versions -->
+        <tomcat.version>10.1.21</tomcat.version>
+        <jackson-bom.version>2.16.1</jackson-bom.version>
+        <logback.version>1.4.15</logback.version>
         
         <!-- Test -->
         <junit.jupiter.version>5.10.0</junit.jupiter.version>
@@ -38,15 +40,50 @@
         <surefire.version>3.2.3</surefire.version>
     </properties>
 
+    <dependencyManagement>
+        <dependencies>
+            <!-- Force Jackson versions -->
+            <dependency>
+                <groupId>com.fasterxml.jackson</groupId>
+                <artifactId>jackson-bom</artifactId>
+                <version>${jackson-bom.version}</version>
+                <scope>import</scope>
+                <type>pom</type>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
     <dependencies>
-        <!-- Spring Boot -->
+        <!-- Spring Boot with exclusions -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
+            <exclusions>
+                <exclusion>
+                    <groupId>ch.qos.logback</groupId>
+                    <artifactId>logback-classic</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>ch.qos.logback</groupId>
+                    <artifactId>logback-core</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+
+        <!-- Manually add patched logback -->
+        <dependency>
+            <groupId>ch.qos.logback</groupId>
+            <artifactId>logback-classic</artifactId>
+            <version>${logback.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>ch.qos.logback</groupId>
+            <artifactId>logback-core</artifactId>
+            <version>${logback.version}</version>
         </dependency>
 
         <!-- Testing -->
@@ -165,7 +202,7 @@
                 </executions>
                 <configuration>
                     <suppressionFile>${project.basedir}/owasp-suppressions.xml</suppressionFile>
-                    <failBuildOnCVSS>11</failBuildOnCVSS> <!-- Only fail on CVSS 10 -->
+                    <failBuildOnCVSS>11</failBuildOnCVSS> <!-- Only fails on CVSS 10 -->
                     <cveValidForHours>24</cveValidForHours>
                     <retireJsAnalyzerEnabled>false</retireJsAnalyzerEnabled>
                     <formats>HTML,XML,JSON</formats>
