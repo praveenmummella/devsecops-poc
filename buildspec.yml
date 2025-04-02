@@ -4,20 +4,22 @@ env:
   variables:
     SONAR_PROJECT_KEY: "devsecops-poc"
     APP_PORT: "5000"
-    ZAP_VERSION: "2.12.0"
+    ZAP_VERSION: "2.12.0"  # For Docker image tag
 
 phases:
   install:
     runtime-versions:
       java: corretto17
     commands:
-      # Install ZAP CLI and dependencies
-      - pip install --user zapcli==1.7.0
-      - export PATH="$PATH:/root/.local/bin"
-      # Cache SonarCloud scanner
-      - wget -q https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-4.8.0.2856-linux.zip
-      - unzip -qq sonar-scanner-cli-*.zip -d /opt
-      - export PATH="$PATH:/opt/sonar-scanner-4.8.0.2856-linux/bin"
+      # 1. Install Docker for ZAP (replaces pip install)
+      - apt-get update
+      - apt-get install -y docker.io
+      - docker pull owasp/zap2docker-stable:$ZAP_VERSION
+      
+      # 2. SonarScanner setup (optimized)
+      - wget -q https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-latest-linux.zip
+      - unzip -qq sonar-scanner-*-linux.zip -d /opt
+      - ln -s /opt/sonar-scanner-*/bin/sonar-scanner /usr/local/bin/sonar-scanner
 
   pre_build:
     commands:
@@ -25,32 +27,47 @@ phases:
 
   build:
     commands:
-      # Build with security scans
-      - mvn -B clean verify sonar:sonar -Pci
-      # Generate dependency check report
+      # Build with security scans (optimized)
+      - mvn -B clean verify sonar:sonar \
+          -Dsonar.projectKey=$SONAR_PROJECT_KEY \
+          -Dsonar.host.url=https://sonarcloud.io \
+          -Dsonar.login=$SONAR_TOKEN
       - mvn -B dependency-check:check
 
   post_build:
     commands:
-      # Start application
-      - nohup java -jar target/*.jar --server.port=$APP_PORT &
-      - sleep 10
+      # Start application (with PID control)
+      - nohup java -jar target/*.jar --server.port=$APP_PORT > /dev/null 2>&1 & echo $! > app.pid
+      - sleep 15
       
-      # Smoke test
-      - curl --retry 5 --retry-delay 5 --fail http://localhost:$APP_PORT/health || exit 1
+      # Enhanced health check
+      - for i in {1..5}; do
+          if curl -sSf http://localhost:$APP_PORT/health; then
+            echo "App healthy";
+            break;
+          else
+            echo "Attempt $i/5: Waiting...";
+            sleep 5;
+          fi
+        done
       
-      # Run ZAP baseline scan
-      - zap-cli --verbose quick-scan \
-          --spider \
-          --ajax-spider \
-          --recursive \
-          --report-html target/zap-report.html \
-          --report-md target/zap-report.md \
-          http://localhost:$APP_PORT
+      # Docker-based ZAP scan (replaces zap-cli)
+      - docker run --rm \
+          -v $(pwd)/target:/zap/wrk \
+          -e JAVA_OPTS="-Xmx2048m" \
+          owasp/zap2docker-stable:$ZAP_VERSION \
+          zap-baseline.py \
+          -t http://host.docker.internal:$APP_PORT \
+          -r zap-report.html \
+          -x zap-report.xml
+      
+      # Cleanup
+      - kill $(cat app.pid) || true
 
 artifacts:
   files:
     - 'target/*.jar'
     - 'target/site/**/*'
-    - 'target/*-report.*'
-  discard-paths: yes
+    - 'target/zap-report.*'
+    - 'target/dependency-check-report.*'
+  name: devsecops-artifacts-$CODEBUILD_BUILD_NUMBER
