@@ -11,22 +11,17 @@ phases:
     runtime-versions:
       java: corretto17
     commands:
-      # 1. Verify Docker
-      - docker info
+      # Verify Docker
+      - docker --version
       
-      # 2. Pull ZAP
+      # Pull ZAP image
       - docker pull ${ZAP_IMAGE}
       
-      # 3. Install SonarScanner (using current URL)
-      - SONAR_SCANNER_URL="https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-5.0.1.3006-linux.zip"
-      - curl -sSL --retry 3 --retry-delay 5 -o sonar-scanner.zip "${SONAR_SCANNER_URL}"
-      - if ! file sonar-scanner.zip | grep -q "Zip archive"; then
-          echo "Download verification failed, trying alternative URL...";
-          SONAR_SCANNER_URL="https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-linux.zip";
-          curl -sSL -o sonar-scanner.zip "${SONAR_SCANNER_URL}";
-        fi
+      # Install SonarScanner (with direct download URL)
+      - curl -sSL -o sonar-scanner.zip https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-5.0.1.3006-linux.zip
       - unzip -qq sonar-scanner.zip -d /opt
       - rm sonar-scanner.zip
+      - chmod +x /opt/sonar-scanner-*/bin/*
       - ln -s /opt/sonar-scanner-*/bin/sonar-scanner /usr/local/bin/
 
   pre_build:
@@ -35,25 +30,26 @@ phases:
 
   build:
     commands:
+      # Build and analyze
       - mvn -B clean package
-      - mvn sonar:sonar \
+      - mvn org.sonarsource.scanner.maven:sonar-maven-plugin:sonar \
           -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
           -Dsonar.host.url=https://sonarcloud.io \
           -Dsonar.login=${SONAR_TOKEN} \
           -Dsonar.java.binaries=target/classes \
           -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml
-      - mvn -B dependency-check:check
+      - mvn org.owasp:dependency-check-maven:check -B
 
   post_build:
     commands:
       # Start application
       - nohup java -jar target/*.jar --server.port=${APP_PORT} > app.log 2>&1 & echo $! > app.pid
-      - sleep 20
+      - sleep 25
 
       # Health check
-      - timeout 60 bash -c 'until curl -sSf http://localhost:${APP_PORT}/health; do sleep 2; done'
+      - timeout 120 bash -c 'until curl -sSf http://localhost:${APP_PORT}/health; do sleep 5; done'
 
-      # ZAP scan
+      # Security scan
       - docker run --network host --rm \
           -v $(pwd)/target:/zap/wrk \
           -e JAVA_OPTS="-Xmx4096m" \
