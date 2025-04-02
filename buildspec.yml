@@ -14,8 +14,8 @@ phases:
       # Verify Docker access
       - docker info
       
-      # Pull ZAP from correct repository
-      - docker pull owasp/zap2docker-stable:${ZAP_VERSION} || docker pull owasp/zap2docker:${ZAP_VERSION}
+      # Pull ZAP from the official registry
+      - docker pull ghcr.io/zaproxy/zaproxy:${ZAP_VERSION}
       
       # Install SonarScanner
       - curl -sSL https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-latest-linux.zip -o sonar-scanner.zip
@@ -47,26 +47,16 @@ phases:
       # Health check
       - timeout 60 bash -c 'while ! curl -sSf http://localhost:${APP_PORT}/health; do sleep 2; done'
 
-      # ZAP scan with fallback repository
-      - if ! docker run --network host --rm \
+      # ZAP scan using the official image
+      - docker run --network host --rm \
           -v $(pwd)/target:/zap/wrk \
           -e JAVA_OPTS="-Xmx4096m" \
-          owasp/zap2docker-stable:${ZAP_VERSION} \
+          ghcr.io/zaproxy/zaproxy:${ZAP_VERSION} \
           zap-baseline.py \
           -t http://localhost:${APP_PORT} \
           -r zap-report.html \
           -x zap-report.xml \
-          -J zap-report.json; then
-          docker run --network host --rm \
-            -v $(pwd)/target:/zap/wrk \
-            -e JAVA_OPTS="-Xmx4096m" \
-            owasp/zap2docker:${ZAP_VERSION} \
-            zap-baseline.py \
-            -t http://localhost:${APP_PORT} \
-            -r zap-report.html \
-            -x zap-report.xml \
-            -J zap-report.json
-        fi
+          -J zap-report.json
 
       # Cleanup
       - kill $(cat app.pid) || true
