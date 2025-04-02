@@ -4,22 +4,24 @@ env:
   variables:
     SONAR_PROJECT_KEY: "devsecops-poc"
     APP_PORT: "5000"
-    ZAP_VERSION: "2.12.0"  # For Docker image tag
+    ZAP_VERSION: "2.12.0"
 
 phases:
   install:
     runtime-versions:
       java: corretto17
     commands:
-      # 1. Install Docker for ZAP (replaces pip install)
+      # 1. Docker setup for ZAP
       - apt-get update
       - apt-get install -y docker.io
+      - systemctl start docker
       - docker pull owasp/zap2docker-stable:$ZAP_VERSION
       
-      # 2. SonarScanner setup (optimized)
+      # 2. SonarScanner setup
       - wget -q https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-latest-linux.zip
-      - unzip -qq sonar-scanner-*-linux.zip -d /opt
+      - unzip -qq sonar-scanner-latest-linux.zip -d /opt
       - ln -s /opt/sonar-scanner-*/bin/sonar-scanner /usr/local/bin/sonar-scanner
+      - export PATH="$PATH:/opt/sonar-scanner-*/bin"
 
   pre_build:
     commands:
@@ -27,47 +29,44 @@ phases:
 
   build:
     commands:
-      # Build with security scans (optimized)
       - mvn -B clean verify sonar:sonar \
           -Dsonar.projectKey=$SONAR_PROJECT_KEY \
           -Dsonar.host.url=https://sonarcloud.io \
-          -Dsonar.login=$SONAR_TOKEN
+          -Dsonar.login=$SONAR_TOKEN \
+          -Dsonar.java.binaries=target/classes \
+          -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml
       - mvn -B dependency-check:check
 
   post_build:
     commands:
-      # Start application (with PID control)
-      - nohup java -jar target/*.jar --server.port=$APP_PORT > /dev/null 2>&1 & echo $! > app.pid
-      - sleep 15
+      # Application startup
+      - nohup java -jar target/*.jar --server.port=$APP_PORT > app.log 2>&1 & echo $! > app.pid
+      - sleep 20
       
-      # Enhanced health check
-      - for i in {1..5}; do
-          if curl -sSf http://localhost:$APP_PORT/health; then
-            echo "App healthy";
-            break;
-          else
-            echo "Attempt $i/5: Waiting...";
-            sleep 5;
-          fi
-        done
+      # Health check with timeout
+      - timeout 60 bash -c 'until curl -sSf http://localhost:$APP_PORT/health; do sleep 2; done'
       
-      # Docker-based ZAP scan (replaces zap-cli)
+      # ZAP security scan
       - docker run --rm \
           -v $(pwd)/target:/zap/wrk \
-          -e JAVA_OPTS="-Xmx2048m" \
+          -e JAVA_OPTS="-Xmx4096m" \
+          -e ZAP_AUTH_HEADER="Authorization: Bearer $APP_TOKEN" \
           owasp/zap2docker-stable:$ZAP_VERSION \
           zap-baseline.py \
           -t http://host.docker.internal:$APP_PORT \
           -r zap-report.html \
-          -x zap-report.xml
+          -x zap-report.xml \
+          -J zap-report.json
       
       # Cleanup
       - kill $(cat app.pid) || true
+      - docker system prune -f
 
 artifacts:
   files:
     - 'target/*.jar'
     - 'target/site/**/*'
-    - 'target/zap-report.*'
-    - 'target/dependency-check-report.*'
-  name: devsecops-artifacts-$CODEBUILD_BUILD_NUMBER
+    - 'target/*-report.*'
+    - 'app.log'
+  name: devsecops-artifacts-$CODEBUILD_BUILD_ID
+  discard-paths: yes
