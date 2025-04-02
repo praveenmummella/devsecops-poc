@@ -4,18 +4,19 @@ env:
   variables:
     SONAR_PROJECT_KEY: "devsecops-poc"
     APP_PORT: "5000"
-    ZAP_VERSION: "2.12.0"
+    # Using latest stable tag instead of specific version
+    ZAP_IMAGE: "ghcr.io/zaproxy/zaproxy:stable"
 
 phases:
   install:
     runtime-versions:
       java: corretto17
     commands:
-      # Verify Docker access
+      # Verify Docker
       - docker info
       
-      # Pull ZAP from the official registry
-      - docker pull ghcr.io/zaproxy/zaproxy:${ZAP_VERSION}
+      # Pull current stable ZAP image
+      - docker pull ${ZAP_IMAGE}
       
       # Install SonarScanner
       - curl -sSL https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-latest-linux.zip -o sonar-scanner.zip
@@ -47,11 +48,11 @@ phases:
       # Health check
       - timeout 60 bash -c 'while ! curl -sSf http://localhost:${APP_PORT}/health; do sleep 2; done'
 
-      # ZAP scan using the official image
+      # ZAP scan using stable image
       - docker run --network host --rm \
           -v $(pwd)/target:/zap/wrk \
           -e JAVA_OPTS="-Xmx4096m" \
-          ghcr.io/zaproxy/zaproxy:${ZAP_VERSION} \
+          ${ZAP_IMAGE} \
           zap-baseline.py \
           -t http://localhost:${APP_PORT} \
           -r zap-report.html \
