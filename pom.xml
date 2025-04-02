@@ -237,7 +237,7 @@
             <properties>
                 <sonar.host.url>https://sonarcloud.io</sonar.host.url>
                 <sonar.organization>praveenmummella</sonar.organization>
-                <sonar.projectKey>praveenmummella_devsecops-poc</sonar.projectKey>
+                <sonar.projectKey>devsecops-poc</sonar.projectKey>
                 <sonar.coverage.jacoco.xmlReportPaths>${project.build.directory}/site/jacoco/jacoco.xml</sonar.coverage.jacoco.xmlReportPaths>
                 <sonar.language>java</sonar.language>
                 <sonar.java.binaries>${project.build.directory}/classes</sonar.java.binaries>
