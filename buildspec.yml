@@ -11,10 +11,12 @@ phases:
     runtime-versions:
       java: corretto17
     commands:
-      # Use CodeBuild's built-in Docker (no installation needed)
+      # Verify Docker access
       - docker info
-      - docker pull owasp/zap2docker-stable:$ZAP_VERSION
-
+      
+      # Pull ZAP from correct repository
+      - docker pull owasp/zap2docker-stable:${ZAP_VERSION} || docker pull owasp/zap2docker:${ZAP_VERSION}
+      
       # Install SonarScanner
       - curl -sSL https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-latest-linux.zip -o sonar-scanner.zip
       - unzip -qq sonar-scanner.zip -d /opt
@@ -29,9 +31,9 @@ phases:
     commands:
       - mvn -B clean package
       - mvn sonar:sonar \
-          -Dsonar.projectKey=$SONAR_PROJECT_KEY \
+          -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
           -Dsonar.host.url=https://sonarcloud.io \
-          -Dsonar.login=$SONAR_TOKEN \
+          -Dsonar.login=${SONAR_TOKEN} \
           -Dsonar.java.binaries=target/classes \
           -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml
       - mvn -B dependency-check:check
@@ -39,22 +41,32 @@ phases:
   post_build:
     commands:
       # Start application
-      - nohup java -jar target/*.jar --server.port=$APP_PORT > app.log 2>&1 & echo $! > app.pid
+      - nohup java -jar target/*.jar --server.port=${APP_PORT} > app.log 2>&1 & echo $! > app.pid
       - sleep 20
 
       # Health check
-      - timeout 60 bash -c 'while ! curl -sSf http://localhost:$APP_PORT/health; do sleep 2; done'
+      - timeout 60 bash -c 'while ! curl -sSf http://localhost:${APP_PORT}/health; do sleep 2; done'
 
-      # ZAP scan using host networking
-      - docker run --network host --rm \
+      # ZAP scan with fallback repository
+      - if ! docker run --network host --rm \
           -v $(pwd)/target:/zap/wrk \
           -e JAVA_OPTS="-Xmx4096m" \
-          owasp/zap2docker-stable:$ZAP_VERSION \
+          owasp/zap2docker-stable:${ZAP_VERSION} \
           zap-baseline.py \
-          -t http://localhost:$APP_PORT \
+          -t http://localhost:${APP_PORT} \
           -r zap-report.html \
           -x zap-report.xml \
-          -J zap-report.json
+          -J zap-report.json; then
+          docker run --network host --rm \
+            -v $(pwd)/target:/zap/wrk \
+            -e JAVA_OPTS="-Xmx4096m" \
+            owasp/zap2docker:${ZAP_VERSION} \
+            zap-baseline.py \
+            -t http://localhost:${APP_PORT} \
+            -r zap-report.html \
+            -x zap-report.xml \
+            -J zap-report.json
+        fi
 
       # Cleanup
       - kill $(cat app.pid) || true
@@ -65,4 +77,4 @@ artifacts:
     - target/site/**
     - target/*-report.*
     - app.log
-  name: devsecops-artifacts-$CODEBUILD_BUILD_ID
+  name: devsecops-artifacts-${CODEBUILD_BUILD_ID}
