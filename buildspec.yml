@@ -1,90 +1,91 @@
 version: 0.2
 env:
   parameter-store:
-    SONAR_TOKEN: "/devsecops/sonar/token"  # Secure token storage
+    SONAR_TOKEN: "/devsecops/sonar/token"
+    ZAP_ALERT_THRESHOLD: "/devsecops/zap/threshold"  # e.g., "Medium"
   variables:
-    SONAR_PROJECT_KEY: "devsecops-poc"
     APP_PORT: "5000"
+    MAVEN_OPTS: "-Dspring.profiles.active=ci -Djava.security.egd=file:/dev/./urandom"
+    SONAR_PROJECT_KEY: "devsecops-poc"
     ZAP_IMAGE: "ghcr.io/zaproxy/zaproxy:stable"
-    MAVEN_OPTS: "-Dspring.profiles.active=build -Djava.security.egd=file:/dev/./urandom"
+    ARTIFACT_NAME: "app-${CODEBUILD_BUILD_NUMBER}.jar"
 
 phases:
   install:
     runtime-versions:
       java: corretto17
     commands:
-      # Verify tools
-      - docker --version
-      - java -version
-      - mvn -v
+      # Tool verification
+      - echo "Java version: $(java -version 2>&1 | head -1)"
+      - echo "Maven version: $(mvn -v | head -1)"
+      - echo "Docker version: $(docker --version)"
       
-      # Pull ZAP image (with retry logic)
-      - for i in {1..3}; do docker pull ${ZAP_IMAGE} && break || sleep 15; done
-      
-      # Install SonarScanner (latest version)
-      - curl -sSL -o sonar-scanner.zip $(curl -s https://api.github.com/repos/SonarSource/sonar-scanner-cli/releases/latest | grep browser_download_url | grep linux | cut -d '"' -f 4)
-      - unzip -qq sonar-scanner.zip -d /opt
-      - rm sonar-scanner.zip
-      - ln -sf /opt/sonar-scanner-*/bin/sonar-scanner /usr/local/bin/
+      # Cached SonarScanner install
+      - if [ ! -f "/opt/sonar-scanner/bin/sonar-scanner" ]; then
+          curl -sSL -o /tmp/sonar-scanner.zip https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-5.0.1.3006-linux.zip &&
+          unzip -qq /tmp/sonar-scanner.zip -d /opt &&
+          mv /opt/sonar-scanner-* /opt/sonar-scanner &&
+          rm /tmp/sonar-scanner.zip;
+        fi
+      - export PATH="/opt/sonar-scanner/bin:${PATH}"
 
   pre_build:
     commands:
-      # Secure dependency download
-      - mvn -B dependency:go-offline dependency:resolve-plugins
+      # Secure credential loading
       - export SONAR_TOKEN=$(aws ssm get-parameter --name "/devsecops/sonar/token" --with-decryption --query "Parameter.Value" --output text)
+      - export ZAP_THRESHOLD=$(aws ssm get-parameter --name "/devsecops/zap/threshold" --query "Parameter.Value" --output text)
+      
+      # Dependency cache warmup
+      - mvn -B dependency:go-offline dependency:resolve-plugins
 
   build:
     commands:
-      # Build with quality gates
+      # Parallel build and security checks
       - mvn -B clean verify 
-        org.jacoco:jacoco-maven-plugin:prepare-agent 
-        org.sonarsource.scanner.maven:sonar-maven-plugin:sonar 
-        org.owasp:dependency-check-maven:check
-        -Dsonar.projectKey=${SONAR_PROJECT_KEY} 
-        -Dsonar.host.url=https://sonarcloud.io 
-        -Dsonar.login=${SONAR_TOKEN} 
-        -Dsonar.java.binaries=target/classes 
-        -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml 
-        -Dsonar.pullrequest.provider=github 
-        -Dsonar.scm.disabled=true
+          org.jacoco:jacoco-maven-plugin:prepare-agent 
+          org.sonarsource.scanner.maven:sonar-maven-plugin:sonar 
+          org.owasp:dependency-check-maven:check
+          -Dsonar.projectKey=${SONAR_PROJECT_KEY} 
+          -Dsonar.host.url=https://sonarcloud.io 
+          -Dsonar.login=${SONAR_TOKEN} 
+          -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml
 
   post_build:
     commands:
-      # Application lifecycle management
-      - APP_JAR=$(ls target/*.jar | head -1)
+      # Application testing
+      - APP_JAR=$(ls target/*.jar)
       - nohup java -jar ${APP_JAR} --server.port=${APP_PORT} > app.log 2>&1 & echo $! > app.pid
       - sleep 15
       
-      # Health check with timeout
-      - timeout 60 bash -c 'while ! curl -sSf http://localhost:${APP_PORT}/actuator/health >/dev/null; do sleep 5; done'
-      
-      # ZAP Security Scan (with improved config)
+      # Security scan with threshold check
       - docker run --network host --rm 
           -v $(pwd):/zap/wrk 
-          -e ZAP_JVM_OPTS="-Xmx4096m" 
           ${ZAP_IMAGE} 
           zap-baseline.py 
           -t http://localhost:${APP_PORT}/ 
-          -c zap.conf 
-          -x zap-report.xml 
+          -c /zap/wrk/zap.conf 
           -J zap-report.json 
-          -r zap-report.html
+          -x zap-report.xml 
+          -r zap-report.html 
+          -l ${ZAP_THRESHOLD:-MEDIUM}
       
-      # Cleanup
+      # Fail build if ZAP finds high/critical issues
+      - python3 check_zap_report.py zap-report.json ${ZAP_THRESHOLD:-MEDIUM} || exit 1
+      
+      # Artifact preparation
+      - cp ${APP_JAR} ${ARTIFACT_NAME}
       - kill -9 $(cat app.pid) || true
-      - rm -f app.pid
 
 artifacts:
   files:
-    - target/*.jar
-    - target/site/**
-    - zap-report.*
-    - dependency-check-report.*
-    - app.log
-  name: devsecops-artifacts-${CODEBUILD_BUILD_ID}
-  discard-paths: yes
+    - "${ARTIFACT_NAME}"
+    - "target/site/**"
+    - "zap-report.*"
+    - "dependency-check-report.*"
+    - "app.log"
+  name: "devsecops-artifacts-${CODEBUILD_BUILD_ID}"
 
 cache:
   paths:
-    - '/root/.m2/**/*'
-    - '/opt/sonar-scanner/**/*'
+    - "/root/.m2/**/*"
+    - "/opt/sonar-scanner/**"
