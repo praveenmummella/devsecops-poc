@@ -38,6 +38,7 @@
         <owasp.dependency.check.version>8.4.0</owasp.dependency.check.version>
         <sonar-maven-plugin.version>3.11.0.3922</sonar-maven-plugin.version>
         <surefire.version>3.2.3</surefire.version>
+        <failsafe.version>3.2.3</failsafe.version>
     </properties>
 
     <dependencyManagement>
@@ -144,6 +145,7 @@
                     </execution>
                     <execution>
                         <id>check</id>
+                        <phase>verify</phase>
                         <goals>
                             <goal>check</goal>
                         </goals>
@@ -192,9 +194,18 @@
                 <groupId>org.sonarsource.scanner.maven</groupId>
                 <artifactId>sonar-maven-plugin</artifactId>
                 <version>${sonar-maven-plugin.version}</version>
+                <executions>
+                    <execution>
+                        <id>sonar-analysis</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>sonar</goal>
+                        </goals>
+                    </execution>
+                </executions>
             </plugin>
 
-            <!-- Surefire -->
+            <!-- Surefire (Unit Tests) -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
@@ -210,6 +221,21 @@
                         <include>**/*Tests.java</include>
                     </includes>
                 </configuration>
+            </plugin>
+
+            <!-- Failsafe (Integration Tests) -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-failsafe-plugin</artifactId>
+                <version>${failsafe.version}</version>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>integration-test</goal>
+                            <goal>verify</goal>
+                        </goals>
+                    </execution>
+                </executions>
             </plugin>
 
             <!-- Compiler Plugin -->
@@ -243,6 +269,12 @@
                 <sonar.java.binaries>${project.build.directory}/classes</sonar.java.binaries>
                 <sonar.java.test.binaries>${project.build.directory}/test-classes</sonar.java.test.binaries>
                 <sonar.junit.reportPaths>${project.build.directory}/surefire-reports</sonar.junit.reportPaths>
+                <sonar.coverage.exclusions>
+                    **/model/**,
+                    **/config/**,
+                    **/exception/**,
+                    **/dto/**
+                </sonar.coverage.exclusions>
             </properties>
         </profile>
     </profiles>
