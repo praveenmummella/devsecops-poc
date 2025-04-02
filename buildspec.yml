@@ -14,15 +14,19 @@ phases:
       # 1. Verify Docker
       - docker info
       
-      # 2. Pull ZAP (with download verification)
-      - until docker pull ${ZAP_IMAGE}; do sleep 1; done
+      # 2. Pull ZAP
+      - docker pull ${ZAP_IMAGE}
       
-      # 3. Install SonarScanner (with robust download)
-      - curl -sSL --retry 3 --retry-delay 5 -o sonar-scanner.zip https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-latest-linux.zip
-      - file sonar-scanner.zip | grep -q "Zip archive data"
+      # 3. Install SonarScanner (using current URL)
+      - SONAR_SCANNER_URL="https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-5.0.1.3006-linux.zip"
+      - curl -sSL --retry 3 --retry-delay 5 -o sonar-scanner.zip "${SONAR_SCANNER_URL}"
+      - if ! file sonar-scanner.zip | grep -q "Zip archive"; then
+          echo "Download verification failed, trying alternative URL...";
+          SONAR_SCANNER_URL="https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-linux.zip";
+          curl -sSL -o sonar-scanner.zip "${SONAR_SCANNER_URL}";
+        fi
       - unzip -qq sonar-scanner.zip -d /opt
       - rm sonar-scanner.zip
-      - chmod +x /opt/sonar-scanner-*/bin/*
       - ln -s /opt/sonar-scanner-*/bin/sonar-scanner /usr/local/bin/
 
   pre_build:
@@ -42,33 +46,23 @@ phases:
 
   post_build:
     commands:
-      # Start app with process control
+      # Start application
       - nohup java -jar target/*.jar --server.port=${APP_PORT} > app.log 2>&1 & echo $! > app.pid
       - sleep 20
 
-      # Robust health check
-      - for i in {1..10}; do
-          if curl -sSf http://localhost:${APP_PORT}/health; then
-            echo "App healthy";
-            break;
-          else
-            echo "Waiting... Attempt $i/10";
-            sleep 5;
-          fi
-        done
+      # Health check
+      - timeout 60 bash -c 'until curl -sSf http://localhost:${APP_PORT}/health; do sleep 2; done'
 
-      # ZAP scan with retries
-      - for i in {1..3}; do
-          docker run --network host --rm \
-            -v $(pwd)/target:/zap/wrk \
-            -e JAVA_OPTS="-Xmx4096m" \
-            ${ZAP_IMAGE} \
-            zap-baseline.py \
-            -t http://localhost:${APP_PORT} \
-            -r zap-report.html \
-            -x zap-report.xml \
-            -J zap-report.json && break || sleep 10;
-        done
+      # ZAP scan
+      - docker run --network host --rm \
+          -v $(pwd)/target:/zap/wrk \
+          -e JAVA_OPTS="-Xmx4096m" \
+          ${ZAP_IMAGE} \
+          zap-baseline.py \
+          -t http://localhost:${APP_PORT} \
+          -r zap-report.html \
+          -x zap-report.xml \
+          -J zap-report.json
 
       # Cleanup
       - kill $(cat app.pid) || true
