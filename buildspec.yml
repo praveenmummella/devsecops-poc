@@ -11,16 +11,17 @@ phases:
     runtime-versions:
       java: corretto17
     commands:
-      # Install Docker and dependencies
-      - apt-get update -y
-      - apt-get install -y docker.io
-      - systemctl start docker
+      # Install Docker (CodeBuild optimized)
+      - yum install -y docker
+      - service docker start
       - docker pull owasp/zap2docker-stable:$ZAP_VERSION
 
       # Install SonarScanner
-      - wget -q https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-latest-linux.zip
-      - unzip -qq sonar-scanner-latest-linux.zip -d /opt
+      - curl -sSL https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-latest-linux.zip -o sonar-scanner.zip
+      - unzip -qq sonar-scanner.zip -d /opt
+      - rm sonar-scanner.zip
       - ln -s /opt/sonar-scanner-*/bin/sonar-scanner /usr/local/bin/sonar-scanner
+      - export PATH="$PATH:/opt/sonar-scanner-*/bin"
 
   pre_build:
     commands:
@@ -39,25 +40,26 @@ phases:
 
   post_build:
     commands:
-      # Start and monitor application
+      # Start application
       - nohup java -jar target/*.jar --server.port=$APP_PORT > app.log 2>&1 & echo $! > app.pid
       - sleep 20
-      - timeout 60 bash -c 'until curl -sSf http://localhost:$APP_PORT/health; do sleep 2; done'
 
-      # Run ZAP security scan
-      - docker run --rm \
+      # Health check
+      - timeout 60 bash -c 'while ! curl -sSf http://localhost:$APP_PORT/health; do sleep 2; done'
+
+      # ZAP scan (using host networking)
+      - docker run --network host --rm \
           -v $(pwd)/target:/zap/wrk \
           -e JAVA_OPTS="-Xmx4096m" \
           owasp/zap2docker-stable:$ZAP_VERSION \
           zap-baseline.py \
-          -t http://host.docker.internal:$APP_PORT \
+          -t http://localhost:$APP_PORT \
           -r zap-report.html \
           -x zap-report.xml \
           -J zap-report.json
 
       # Cleanup
       - kill $(cat app.pid) || true
-      - docker system prune -f
 
 artifacts:
   files:
@@ -66,4 +68,3 @@ artifacts:
     - target/*-report.*
     - app.log
   name: devsecops-artifacts-$CODEBUILD_BUILD_ID
-  discard-paths: yes
