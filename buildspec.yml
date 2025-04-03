@@ -17,14 +17,17 @@ phases:
       - echo "Setting up ZAP configuration..."
       - mkdir -p zap/reports
       - |
-        cat > zap/rules.conf << 'EOL'
-        exclude	.*/static/.*
-        include	.*
-        level	INFO
-        progress	100
-        10011	IGNORE	# Cookie Without Secure Flag
-        10015	IGNORE	# X-Content-Type-Options
-        40012	WARN	# CSP Header
+        cat > zap/zap.conf << 'EOL'
+        # OWASP ZAP Baseline Rules
+        exclude=^.*/static/.*
+        level=MEDIUM
+        progress=100
+        
+        # Custom rule adjustments
+        rules=
+          10011=IGNORE  # Cookie Without Secure Flag
+          10015=IGNORE  # X-Content-Type-Options
+          40012=WARN    # CSP Header
         EOL
 
   pre_build:
@@ -48,7 +51,7 @@ phases:
         ${ZAP_IMAGE}
         zap-baseline.py
         -t http://localhost:${APP_PORT}
-        -c /zap/wrk/rules.conf
+        -c /zap/wrk/zap.conf
         -r /zap/wrk/reports/report.html
         -x /zap/wrk/reports/report.xml
         -j /zap/wrk/reports/report.json
@@ -59,7 +62,7 @@ phases:
 
 artifacts:
   files:
-    - "app.jar"
+    - "${ARTIFACT_NAME}"
     - "zap/reports/*"
     - "app.log"
   name: "devsecops-artifacts"
