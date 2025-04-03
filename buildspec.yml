@@ -6,8 +6,8 @@ env:
     APP_PORT: "5000"
     SONAR_PROJECT_KEY: "devsecops-poc"
     ZAP_IMAGE: "ghcr.io/zaproxy/zaproxy:stable"
-    ARTIFACT_NAME: "app.jar"
-    ZAP_THRESHOLD: "MEDIUM"  # LOW, MEDIUM, HIGH, CRITICAL
+    ARTIFACT_NAME: "app-${CODEBUILD_BUILD_NUMBER}.jar"
+    ZAP_THRESHOLD: "MEDIUM"
 
 phases:
   install:
@@ -15,6 +15,7 @@ phases:
       java: corretto17
     commands:
       - echo "Installing tools..."
+      - mkdir -p zap/reports
       - curl -sSL -o sonar-scanner.zip https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-5.0.1.3006-linux.zip
       - unzip -qq sonar-scanner.zip -d /opt
       - rm sonar-scanner.zip
@@ -27,28 +28,27 @@ phases:
 
   build:
     commands:
-      - echo "Running build..."
+      - echo "Building application..."
       - mvn -B clean package
-      - mkdir -p zap/reports
 
   post_build:
     commands:
       - echo "Starting security scans..."
       # Start application
       - nohup java -jar target/*.jar --server.port=${APP_PORT} > app.log 2>&1 & echo $! > app.pid
-      - sleep 30  # Wait for app to start
+      - sleep 30
       
-      # Run ZAP DAST Scan
+      # Run ZAP Scan (fixed config path)
       - |
         docker run --network host --rm \
           -v $(pwd)/zap:/zap/wrk:rw \
           -e ZAP_JVM_OPTS="-Xmx4096m" \
           ${ZAP_IMAGE} zap-baseline.py \
           -t http://localhost:${APP_PORT} \
-          -c zap/rules.conf \
-          -r zap/reports/report.html \
-          -x zap/reports/report.xml \
-          -j zap/reports/report.json \
+          -c /zap/wrk/rules.conf \
+          -r /zap/wrk/reports/report.html \
+          -x /zap/wrk/reports/report.xml \
+          -j /zap/wrk/reports/report.json \
           -l ${ZAP_THRESHOLD} || \
         if [ $? -eq 2 ]; then exit 0; else exit $?; fi
       
@@ -58,10 +58,10 @@ phases:
 
 artifacts:
   files:
-    - "app.jar"
+    - "${ARTIFACT_NAME}"
     - "zap/reports/**/*"
     - "app.log"
-  name: "artifacts"
+  name: "devsecops-artifacts"
 
 cache:
   paths:
