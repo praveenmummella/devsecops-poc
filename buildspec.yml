@@ -20,12 +20,21 @@ phases:
       - echo "Creating ZAP configuration..."
       - mkdir -p zap/reports
       - |
-        printf "exclude\t^.*/static/.*\tExclude static files\n" > zap/zap.conf
-        printf "level\tMEDIUM\t\n" >> zap/zap.conf
-        printf "progress\t100\t\n" >> zap/zap.conf
-        printf "rules\t10011=IGNORE\tCookie Without Secure Flag\n" >> zap/zap.conf
-        printf "rules\t10015=IGNORE\tX-Content-Type-Options\n" >> zap/zap.conf
-        printf "rules\t40012=WARN\tCSP Header\n" >> zap/zap.conf
+        # Create minimal config with only necessary directives
+        cat > zap/zap.conf << 'EOL'
+exclude ^.*/static/.*
+level MEDIUM
+progress 100
+rules.10011=IGNORE
+rules.10015=IGNORE
+rules.40012=WARN
+EOL
+        
+        # Verify configuration
+        echo "=== ZAP Config Verification ==="
+        echo "File contents:"
+        cat zap/zap.conf
+        echo "============================="
 
   pre_build:
     commands:
@@ -44,21 +53,20 @@ phases:
       - echo "Checking application..."
       - if ! nc -zv localhost ${APP_PORT}; then echo "Application failed to start"; exit 1; fi
 
-      - |
-        echo "Running ZAP scan..."
-        docker run --rm --network host \
+      - echo "Running ZAP scan..."
+      - docker run --rm --network host \
           -v $(pwd)/zap:/zap/wrk:rw \
           ${ZAP_IMAGE} \
           zap-baseline.py \
           -t "http://localhost:${APP_PORT}" \
-          -c "/zap/wrk/zap.conf" \
+          -g "/zap/wrk/zap.conf" \
           -r "/zap/wrk/reports/report.html" \
           -x "/zap/wrk/reports/report.xml" \
           -j "/zap/wrk/reports/report.json" \
           -l "${ZAP_THRESHOLD}" \
           -d -v
-        ZAP_EXIT_CODE=$?
-        if [ $ZAP_EXIT_CODE -eq 0 ]; then
+      - ZAP_EXIT_CODE=$?
+      - if [ $ZAP_EXIT_CODE -eq 0 ]; then
           echo "ZAP scan completed successfully"
         elif [ $ZAP_EXIT_CODE -eq 2 ]; then
           echo "ZAP scan completed with warnings"
@@ -66,9 +74,7 @@ phases:
           echo "=== ZAP SCAN FAILURE ==="
           echo "Exit code: $ZAP_EXIT_CODE"
           echo "Config file contents:"
-          cat zap/zap.conf | sed 's/\t/|TAB|/g'
-          echo "Docker info:"
-          docker info
+          cat zap/zap.conf
           exit $ZAP_EXIT_CODE
         fi
 
