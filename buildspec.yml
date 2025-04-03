@@ -29,13 +29,14 @@ phases:
   build:
     commands:
       - echo "Running build and analysis..."
-      - mvn -B clean verify org.jacoco:jacoco-maven-plugin:prepare-agent -Dsonar.projectKey=${SONAR_PROJECT_KEY} -Dsonar.host.url=https://sonarcloud.io -Dsonar.login=${SONAR_TOKEN} -Dsonar.java.binaries=target/classes -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml
-      - mvn -B org.sonarsource.scanner.maven:sonar-maven-plugin:sonar
+      - mvn -B clean verify
+      - mvn -B org.jacoco:jacoco-maven-plugin:prepare-agent
+      - mvn -B org.sonarsource.scanner.maven:sonar-maven-plugin:sonar -Dsonar.projectKey=${SONAR_PROJECT_KEY} -Dsonar.host.url=https://sonarcloud.io -Dsonar.login=${SONAR_TOKEN} -Dsonar.java.binaries=target/classes -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml
       - mvn -B org.owasp:dependency-check-maven:check
 
   post_build:
     commands:
-      - echo "Starting security scan with threshold: ${ZAP_THRESHOLD}"
+      - echo "Starting security scan..."
       - APP_JAR=$(ls target/*.jar)
       - nohup java -jar ${APP_JAR} --server.port=${APP_PORT} > app.log 2>&1 & echo $! > app.pid
       - sleep 20
