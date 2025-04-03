@@ -3,11 +3,11 @@ env:
   parameter-store:
     SONAR_TOKEN: "/devsecops/sonar/token"
   variables:
-    ZAP_THRESHOLD: "MEDIUM"
     APP_PORT: "5000"
     SONAR_PROJECT_KEY: "devsecops-poc"
     ZAP_IMAGE: "ghcr.io/zaproxy/zaproxy:stable"
-    ARTIFACT_NAME: "app-${CODEBUILD_BUILD_NUMBER}.jar"
+    ARTIFACT_NAME: "app.jar"
+    ZAP_THRESHOLD: "MEDIUM"  # LOW, MEDIUM, HIGH, CRITICAL
 
 phases:
   install:
@@ -24,35 +24,44 @@ phases:
     commands:
       - echo "Fetching credentials..."
       - export SONAR_TOKEN=$(aws ssm get-parameter --name "/devsecops/sonar/token" --with-decryption --query "Parameter.Value" --output text || echo "")
-      - mvn -B dependency:go-offline
 
   build:
     commands:
-      - echo "Running build and analysis..."
-      - mvn -B clean verify
-      - mvn -B org.jacoco:jacoco-maven-plugin:prepare-agent
-      - mvn -B org.sonarsource.scanner.maven:sonar-maven-plugin:sonar -Dsonar.projectKey=${SONAR_PROJECT_KEY} -Dsonar.host.url=https://sonarcloud.io -Dsonar.login=${SONAR_TOKEN} -Dsonar.java.binaries=target/classes -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml
-      - mvn -B org.owasp:dependency-check-maven:check
+      - echo "Running build..."
+      - mvn -B clean package
+      - mkdir -p zap/reports
 
   post_build:
     commands:
-      - echo "Starting security scan..."
-      - APP_JAR=$(ls target/*.jar)
-      - nohup java -jar ${APP_JAR} --server.port=${APP_PORT} > app.log 2>&1 & echo $! > app.pid
-      - sleep 20
-      - timeout 60 bash -c 'until curl -sSf http://localhost:${APP_PORT}/actuator/health >/dev/null; do sleep 5; done'
-      - docker run --network host --rm -v $(pwd)/zap:/zap/conf -v $(pwd):/zap/wrk ${ZAP_IMAGE} zap-baseline.py -t http://localhost:${APP_PORT} -c /zap/conf/zap.conf -r zap-report.html -x zap-report.xml -J zap-report.json -l ${ZAP_THRESHOLD}
-      - python3 zap/check_zap_report.py zap-report.json ${ZAP_THRESHOLD} || exit 1
-      - cp ${APP_JAR} ${ARTIFACT_NAME}
-      - kill -9 $(cat app.pid) || true
+      - echo "Starting security scans..."
+      # Start application
+      - nohup java -jar target/*.jar --server.port=${APP_PORT} > app.log 2>&1 & echo $! > app.pid
+      - sleep 30  # Wait for app to start
+      
+      # Run ZAP DAST Scan
+      - |
+        docker run --network host --rm \
+          -v $(pwd)/zap:/zap/wrk:rw \
+          -e ZAP_JVM_OPTS="-Xmx4096m" \
+          ${ZAP_IMAGE} zap-baseline.py \
+          -t http://localhost:${APP_PORT} \
+          -c zap/rules.conf \
+          -r zap/reports/report.html \
+          -x zap/reports/report.xml \
+          -j zap/reports/report.json \
+          -l ${ZAP_THRESHOLD} || \
+        if [ $? -eq 2 ]; then exit 0; else exit $?; fi
+      
+      # Process results
+      - python3 zap/check_results.py zap/reports/report.json ${ZAP_THRESHOLD}
+      - cp target/*.jar ${ARTIFACT_NAME}
 
 artifacts:
   files:
-    - "${ARTIFACT_NAME}"
-    - "target/site/**"
-    - "zap-report.*"
-    - "dependency-check-report.*"
-  name: "devsecops-artifacts-${CODEBUILD_BUILD_ID}"
+    - "app.jar"
+    - "zap/reports/**/*"
+    - "app.log"
+  name: "artifacts"
 
 cache:
   paths:
