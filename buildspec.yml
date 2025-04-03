@@ -14,9 +14,21 @@ phases:
     runtime-versions:
       java: corretto17
     commands:
-      - echo "Setting up environment..."
+      - echo "Setting up ZAP configuration..."
       - mkdir -p zap/reports
-      - echo -e "exclude=.*/static/.*\nlevel=MEDIUM\nprogress=100\nrules=\n  10011=IGNORE\n  10015=IGNORE\n  40012=WARN" > zap/rules.conf
+      - |
+        cat > zap/rules.conf << 'EOL'
+        # ZAP Baseline Scan Configuration
+        exclude = .*/static/.*
+        include = .*
+        level = INFO
+        progress = 100
+        
+        [rules]
+        10011 = IGNORE  # Cookie Without Secure Flag
+        10015 = IGNORE  # X-Content-Type-Options
+        40012 = WARN    # CSP Header
+        EOL
 
   pre_build:
     commands:
@@ -28,21 +40,20 @@ phases:
 
   post_build:
     commands:
-      - echo "Starting application on port ${APP_PORT}..."
+      - echo "Starting application..."
       - nohup java -jar target/*.jar --server.port=${APP_PORT} > app.log 2>&1 & echo $! > app.pid
       - sleep 30
       
       - echo "Running ZAP DAST scan..."
-      - >
-        docker run --network host --rm
-        -v $(pwd)/zap:/zap/wrk:rw
-        ${ZAP_IMAGE} zap-baseline.py
-        -t http://localhost:${APP_PORT}
-        -c /zap/wrk/rules.conf
-        -r /zap/wrk/reports/report.html
-        -x /zap/wrk/reports/report.xml
-        -j /zap/wrk/reports/report.json
-        -l ${ZAP_THRESHOLD}
+      - docker run --network host --rm \
+          -v $(pwd)/zap:/zap/wrk:rw \
+          ${ZAP_IMAGE} zap-baseline.py \
+          -t http://localhost:${APP_PORT} \
+          -c /zap/wrk/rules.conf \
+          -r /zap/wrk/reports/report.html \
+          -x /zap/wrk/reports/report.xml \
+          -j /zap/wrk/reports/report.json \
+          -l ${ZAP_THRESHOLD}
       
       - echo "Copying artifacts..."
       - cp target/*.jar ${ARTIFACT_NAME}
