@@ -20,7 +20,6 @@ phases:
       - echo "Creating ZAP configuration..."
       - mkdir -p zap/reports
       - |
-        # Create minimal config with only necessary directives
         cat > zap/zap.conf << 'EOL'
 exclude ^.*/static/.*
 level MEDIUM
@@ -29,12 +28,6 @@ rules.10011=IGNORE
 rules.10015=IGNORE
 rules.40012=WARN
 EOL
-        
-        # Verify configuration
-        echo "=== ZAP Config Verification ==="
-        echo "File contents:"
-        cat zap/zap.conf
-        echo "============================="
 
   pre_build:
     commands:
@@ -54,17 +47,7 @@ EOL
       - if ! nc -zv localhost ${APP_PORT}; then echo "Application failed to start"; exit 1; fi
 
       - echo "Running ZAP scan..."
-      - docker run --rm --network host \
-          -v $(pwd)/zap:/zap/wrk:rw \
-          ${ZAP_IMAGE} \
-          zap-baseline.py \
-          -t "http://localhost:${APP_PORT}" \
-          -g "/zap/wrk/zap.conf" \
-          -r "/zap/wrk/reports/report.html" \
-          -x "/zap/wrk/reports/report.xml" \
-          -j "/zap/wrk/reports/report.json" \
-          -l "${ZAP_THRESHOLD}" \
-          -d -v
+      - docker run --rm --network host -v $(pwd)/zap:/zap/wrk:rw ${ZAP_IMAGE} zap-baseline.py -t "http://localhost:${APP_PORT}" -g "/zap/wrk/zap.conf" -r "/zap/wrk/reports/report.html" -x "/zap/wrk/reports/report.xml" -j "/zap/wrk/reports/report.json" -l "${ZAP_THRESHOLD}" -d -v
       - ZAP_EXIT_CODE=$?
       - if [ $ZAP_EXIT_CODE -eq 0 ]; then
           echo "ZAP scan completed successfully"
@@ -73,8 +56,6 @@ EOL
         else
           echo "=== ZAP SCAN FAILURE ==="
           echo "Exit code: $ZAP_EXIT_CODE"
-          echo "Config file contents:"
-          cat zap/zap.conf
           exit $ZAP_EXIT_CODE
         fi
 
