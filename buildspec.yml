@@ -17,16 +17,15 @@ phases:
       - echo "Creating verified ZAP configuration..."
       - mkdir -p zap/reports
       - |
-        cat <<EOF > zap/zap.conf
-        # OWASP ZAP Baseline Rules
-        exclude=.*static/.*
-        progress=100
-        10011=IGNORE  # Cookie Without Secure Flag
-        10015=IGNORE  # X-Content-Type-Options
-        40012=WARN    # CSP Header
-        EOF
+        printf "exclude\t.*static/.*\tExclude static files\n" > zap/zap.conf
+        printf "progress\t100\n" >> zap/zap.conf
+        printf "rules\t10011=IGNORE\tCookie Without Secure Flag\n" >> zap/zap.conf
+        printf "rules\t10015=IGNORE\tX-Content-Type-Options\n" >> zap/zap.conf
+        printf "rules\t40012=WARN\tCSP Header\n" >> zap/zap.conf
       - echo "ZAP config file created with contents:"
       - cat zap/zap.conf
+      - echo -e "\nHex dump verification:"
+      - hexdump -C zap/zap.conf  # Verify tabs are present
 
   pre_build:
     commands:
@@ -40,8 +39,9 @@ phases:
     commands:
       - echo "Starting application..."
       - nohup java -jar target/*.jar --server.port=${APP_PORT} > app.log 2>&1 & echo $! > app.pid
-      - sleep 30
-      
+      - sleep 10
+      - if ! nc -zv localhost ${APP_PORT}; then echo "Application failed to start"; exit 1; fi  # Verify app is running
+
       - echo "Running ZAP DAST scan with debug..."
       - >
         docker run --network host --rm
@@ -54,7 +54,7 @@ phases:
         -x /zap/wrk/reports/report.xml
         -j /zap/wrk/reports/report.json
         -l ${ZAP_THRESHOLD} || [ $? -eq 2 ] && echo "ZAP scan completed with warnings"
-      
+
       - echo "Copying artifacts..."
       - cp target/*.jar ${ARTIFACT_NAME}
 
