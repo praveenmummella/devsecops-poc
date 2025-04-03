@@ -19,15 +19,18 @@ phases:
       - |
         cat > zap/zap.conf << 'EOL'
         # OWASP ZAP Baseline Rules
-        exclude=^.*/static/.*
-        level=MEDIUM
-        progress=100
+        # Format for excludes: exclude\t<regex>\t<description>
+        exclude	^.*/static/.*	Static files exclusion
+        
+        # General settings
+        level	MEDIUM
+        progress	100
         
         # Custom rule adjustments
-        rules=
-          10011=IGNORE  # Cookie Without Secure Flag
-          10015=IGNORE  # X-Content-Type-Options
-          40012=WARN    # CSP Header
+        # Format: rules\t<rule_id>=<action>
+        rules	10011=IGNORE	# Cookie Without Secure Flag
+        rules	10015=IGNORE	# X-Content-Type-Options
+        rules	40012=WARN	# CSP Header
         EOL
 
   pre_build:
