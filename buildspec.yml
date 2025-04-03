@@ -14,11 +14,10 @@ phases:
     runtime-versions:
       java: corretto17
     commands:
-      - echo "Setting up ZAP configuration..."
+      - echo "Setting up environment..."
       - mkdir -p zap/reports
       - |
         cat > zap/rules.conf << 'EOL'
-        # ZAP Baseline Scan Configuration
         exclude = .*/static/.*
         include = .*
         level = INFO
@@ -45,15 +44,17 @@ phases:
       - sleep 30
       
       - echo "Running ZAP DAST scan..."
-      - docker run --network host --rm \
-          -v $(pwd)/zap:/zap/wrk:rw \
-          ${ZAP_IMAGE} zap-baseline.py \
-          -t http://localhost:${APP_PORT} \
-          -c /zap/wrk/rules.conf \
-          -r /zap/wrk/reports/report.html \
-          -x /zap/wrk/reports/report.xml \
-          -j /zap/wrk/reports/report.json \
-          -l ${ZAP_THRESHOLD}
+      - >
+        docker run --network host --rm
+        -v $(pwd)/zap:/zap/wrk:rw
+        ${ZAP_IMAGE}
+        zap-baseline.py
+        -t http://localhost:${APP_PORT}
+        -c /zap/wrk/rules.conf
+        -r /zap/wrk/reports/report.html
+        -x /zap/wrk/reports/report.xml
+        -j /zap/wrk/reports/report.json
+        -l ${ZAP_THRESHOLD}
       
       - echo "Copying artifacts..."
       - cp target/*.jar ${ARTIFACT_NAME}
