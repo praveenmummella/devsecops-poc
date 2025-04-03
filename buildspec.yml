@@ -27,10 +27,6 @@ phases:
           echo -e "rules\t10015=IGNORE\t# X-Content-Type-Options"
           echo -e "rules\t40012=WARN\t# CSP Header"
         } > zap/zap.conf
-        
-        echo "=== ZAP Config Verification ==="
-        cat zap/zap.conf
-        echo "============================="
 
   pre_build:
     commands:
@@ -51,15 +47,15 @@ phases:
 
       - echo "Running ZAP scan..."
       - >
-        docker run --rm --network host \
-        -v $(pwd)/zap:/zap/wrk:rw \
-        ${ZAP_IMAGE} \
-        zap-baseline.py -d -v \
-        -t http://localhost:${APP_PORT} \
-        -c /zap/wrk/zap.conf \
-        -r /zap/wrk/reports/report.html \
-        -x /zap/wrk/reports/report.xml \
-        -j /zap/wrk/reports/report.json \
+        docker run --rm --network host
+        -v $(pwd)/zap:/zap/wrk:rw
+        ${ZAP_IMAGE}
+        zap-baseline.py -d -v
+        -t http://localhost:${APP_PORT}
+        -c /zap/wrk/zap.conf
+        -r /zap/wrk/reports/report.html
+        -x /zap/wrk/reports/report.xml
+        -j /zap/wrk/reports/report.json
         -l ${ZAP_THRESHOLD} || [ $? -eq 2 ] && echo "ZAP scan completed with warnings"
 
       - cp target/*.jar ${ARTIFACT_NAME}
