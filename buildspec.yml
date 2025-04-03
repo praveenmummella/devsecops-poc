@@ -14,26 +14,22 @@ phases:
     runtime-versions:
       java: corretto17
     commands:
-      - echo "Setting up ZAP configuration..."
+      - echo "Creating verified ZAP configuration..."
       - mkdir -p zap/reports
       - |
-        cat > zap/zap.conf << 'EOL'
-        # ZAP Configuration File
-        # Exclusions must use format: exclude\t<regex>\t<optional_description>
-        exclude	^.*/static/.*	Exclude static files
+        # Create config with explicit tab characters using printf
+        printf "exclude\t^.*/static/.*\tExclude static files\n" > zap/zap.conf
+        printf "level\tMEDIUM\n" >> zap/zap.conf
+        printf "progress\t100\n" >> zap/zap.conf
+        printf "rules\t10011=IGNORE\t# Cookie Without Secure Flag\n" >> zap/zap.conf
+        printf "rules\t10015=IGNORE\t# X-Content-Type-Options\n" >> zap/zap.conf
+        printf "rules\t40012=WARN\t# CSP Header\n" >> zap/zap.conf
         
-        # Global scan level
-        level	MEDIUM
-        
-        # Progress update interval (ms)
-        progress	100
-        
-        # Custom rule adjustments
-        # Format: rules\t<rule_id>=<action>
-        rules	10011=IGNORE	# Cookie Without Secure Flag
-        rules	10015=IGNORE	# X-Content-Type-Options
-        rules	40012=WARN	# CSP Header
-        EOL
+        # Verify file creation
+        echo "ZAP config file created with contents:"
+        cat zap/zap.conf
+        echo -e "\nHex dump verification:"
+        hexdump -C zap/zap.conf
 
   pre_build:
     commands:
@@ -49,12 +45,12 @@ phases:
       - nohup java -jar target/*.jar --server.port=${APP_PORT} > app.log 2>&1 & echo $! > app.pid
       - sleep 30
       
-      - echo "Running ZAP DAST scan..."
+      - echo "Running ZAP DAST scan with debug..."
       - >
         docker run --network host --rm
         -v $(pwd)/zap:/zap/wrk:rw
         ${ZAP_IMAGE}
-        zap-baseline.py
+        zap-baseline.py -d
         -t http://localhost:${APP_PORT}
         -c /zap/wrk/zap.conf
         -r /zap/wrk/reports/report.html
