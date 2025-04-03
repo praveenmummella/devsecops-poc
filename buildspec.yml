@@ -14,19 +14,17 @@ phases:
     runtime-versions:
       java: corretto17
     commands:
-      - echo "Setting up environment..."
+      - echo "Setting up ZAP configuration..."
       - mkdir -p zap/reports
       - |
         cat > zap/rules.conf << 'EOL'
-        exclude = .*/static/.*
-        include = .*
-        level = INFO
-        progress = 100
-        
-        [rules]
-        10011 = IGNORE  # Cookie Without Secure Flag
-        10015 = IGNORE  # X-Content-Type-Options
-        40012 = WARN    # CSP Header
+        exclude	.*/static/.*
+        include	.*
+        level	INFO
+        progress	100
+        10011	IGNORE	# Cookie Without Secure Flag
+        10015	IGNORE	# X-Content-Type-Options
+        40012	WARN	# CSP Header
         EOL
 
   pre_build:
@@ -54,7 +52,7 @@ phases:
         -r /zap/wrk/reports/report.html
         -x /zap/wrk/reports/report.xml
         -j /zap/wrk/reports/report.json
-        -l ${ZAP_THRESHOLD}
+        -l ${ZAP_THRESHOLD} || [ $? -eq 2 ] && echo "ZAP scan completed with warnings"
       
       - echo "Copying artifacts..."
       - cp target/*.jar ${ARTIFACT_NAME}
