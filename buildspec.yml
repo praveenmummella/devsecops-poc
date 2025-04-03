@@ -14,22 +14,27 @@ phases:
     runtime-versions:
       java: corretto17
     commands:
-      - echo "Creating verified ZAP configuration..."
+      - echo "Creating guaranteed-working ZAP configuration..."
       - mkdir -p zap/reports
       - |
-        # Create config with explicit tab characters using printf
-        printf "exclude\t^.*/static/.*\tExclude static files\n" > zap/zap.conf
-        printf "level\tMEDIUM\n" >> zap/zap.conf
-        printf "progress\t100\n" >> zap/zap.conf
-        printf "rules\t10011=IGNORE\t# Cookie Without Secure Flag\n" >> zap/zap.conf
-        printf "rules\t10015=IGNORE\t# X-Content-Type-Options\n" >> zap/zap.conf
-        printf "rules\t40012=WARN\t# CSP Header\n" >> zap/zap.conf
+        # Create config with explicit tab characters
+        cat > zap/zap.conf << 'EOL'
+exclude	^.*/static/.*
+level	MEDIUM
+progress	100
+rules	10011=IGNORE
+rules	10015=IGNORE
+rules	40012=WARN
+EOL
         
-        # Verify file creation
-        echo "ZAP config file created with contents:"
-        cat zap/zap.conf
-        echo -e "\nHex dump verification:"
-        hexdump -C zap/zap.conf
+        # Critical verification steps
+        echo "Verifying configuration file:"
+        echo "Tab character check (should show 1):"
+        grep -P "exclude\t" zap/zap.conf | wc -l
+        echo "Hex dump (09 = tab):"
+        hexdump -C zap/zap.conf | head -5
+        echo "Field count verification:"
+        awk '{print "Line", NR, "has", NF, "fields"}' zap/zap.conf
 
   pre_build:
     commands:
@@ -45,12 +50,12 @@ phases:
       - nohup java -jar target/*.jar --server.port=${APP_PORT} > app.log 2>&1 & echo $! > app.pid
       - sleep 30
       
-      - echo "Running ZAP DAST scan with debug..."
+      - echo "Running ZAP scan with debug..."
       - >
         docker run --network host --rm
         -v $(pwd)/zap:/zap/wrk:rw
         ${ZAP_IMAGE}
-        zap-baseline.py -d
+        zap-baseline.py -d -v
         -t http://localhost:${APP_PORT}
         -c /zap/wrk/zap.conf
         -r /zap/wrk/reports/report.html
