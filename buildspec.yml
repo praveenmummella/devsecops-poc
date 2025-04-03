@@ -14,18 +14,25 @@ phases:
     runtime-versions:
       java: corretto17
     commands:
-      - echo "Creating ZAP configuration..."
+      - echo "Creating guaranteed ZAP configuration..."
       - mkdir -p zap/reports
       - |
-        printf "exclude\t^.*/static/.*\n" > zap/zap.conf
-        printf "level\tMEDIUM\n" >> zap/zap.conf
-        printf "progress\t100\n" >> zap/zap.conf
-        printf "rules\t10011=IGNORE\n" >> zap/zap.conf
-        printf "rules\t10015=IGNORE\n" >> zap/zap.conf
-        printf "rules\t40012=WARN\n" >> zap/zap.conf
-        echo "ZAP config verification:"
+        # Create config with exactly 3 tab-separated values for exclude
+        printf "exclude\t^.*/static/.*\tExclude static files\n" > zap/zap.conf
+        printf "level\tMEDIUM\t\n" >> zap/zap.conf
+        printf "progress\t100\t\n" >> zap/zap.conf
+        printf "rules\t10011=IGNORE\t\n" >> zap/zap.conf
+        printf "rules\t10015=IGNORE\t\n" >> zap/zap.conf
+        printf "rules\t40012=WARN\t\n" >> zap/zap.conf
+        
+        # Critical verification
+        echo "Verifying configuration:"
+        echo "Tab character check:"
         grep -P "exclude\t" zap/zap.conf || echo "ERROR: Tabs missing"
-        hexdump -C zap/zap.conf | head
+        echo "Field count verification:"
+        awk -F'\t' '{print NR, NF}' zap/zap.conf
+        echo "Hex dump (09 = tab):"
+        hexdump -C zap/zap.conf | head -5
 
   pre_build:
     commands:
@@ -40,7 +47,8 @@ phases:
       - echo "Starting application..."
       - nohup java -jar target/*.jar --server.port=${APP_PORT} > app.log 2>&1 & echo $! > app.pid
       - sleep 30
-      - echo "Running ZAP scan..."
+      
+      - echo "Running ZAP scan with debug..."
       - >
         docker run --network host --rm
         -v $(pwd)/zap:/zap/wrk:rw
@@ -52,6 +60,8 @@ phases:
         -x /zap/wrk/reports/report.xml
         -j /zap/wrk/reports/report.json
         -l ${ZAP_THRESHOLD} || [ $? -eq 2 ] && echo "ZAP scan completed with warnings"
+      
+      - echo "Copying artifacts..."
       - cp target/*.jar ${ARTIFACT_NAME}
 
 artifacts:
