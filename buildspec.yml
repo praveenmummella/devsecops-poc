@@ -56,18 +56,25 @@ phases:
       - if ! nc -zv localhost ${APP_PORT}; then echo "Application failed to start"; exit 1; fi
 
       - echo "Running ZAP scan..."
-      - docker run --rm --network host \
-          -v $(pwd)/zap:/zap/wrk:rw \
-          ${ZAP_IMAGE} \
-          zap-baseline.py \
-          -t "http://localhost:${APP_PORT}" \
-          -c "/zap/wrk/zap.conf" \
-          -r "/zap/wrk/reports/report.html" \
-          -x "/zap/wrk/reports/report.xml" \
-          -j "/zap/wrk/reports/report.json" \
-          -l "${ZAP_THRESHOLD}" \
-          -d -v || \
-        { [ $? -eq 2 ] && echo "ZAP scan completed with warnings"; exit 0; }
+      - >
+        docker run --rm --network host \
+        -v $(pwd)/zap:/zap/wrk:rw \
+        ${ZAP_IMAGE} \
+        zap-baseline.py \
+        -t "http://localhost:${APP_PORT}" \
+        -c "/zap/wrk/zap.conf" \
+        -r "/zap/wrk/reports/report.html" \
+        -x "/zap/wrk/reports/report.xml" \
+        -j "/zap/wrk/reports/report.json" \
+        -l "${ZAP_THRESHOLD}" \
+        -d -v
+      - ZAP_EXIT_CODE=$?
+      - if [ $ZAP_EXIT_CODE -eq 0 ] || [ $ZAP_EXIT_CODE -eq 2 ]; then
+          echo "ZAP scan completed successfully";
+          if [ $ZAP_EXIT_CODE -eq 2 ]; then echo "Scan completed with warnings"; fi
+        else
+          exit $ZAP_EXIT_CODE
+        fi
 
       - cp target/*.jar ${ARTIFACT_NAME}
 
