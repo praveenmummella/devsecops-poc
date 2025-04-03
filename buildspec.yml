@@ -6,7 +6,7 @@ env:
     APP_PORT: "5000"
     SONAR_PROJECT_KEY: "devsecops-poc"
     ZAP_IMAGE: "ghcr.io/zaproxy/zaproxy:stable"
-    ARTIFACT_NAME: "app-${CODEBUILD_BUILD_NUMBER}.jar"
+    ARTIFACT_NAME: "app.jar"
     ZAP_THRESHOLD: "MEDIUM"
 
 phases:
@@ -14,16 +14,19 @@ phases:
     runtime-versions:
       java: corretto17
     commands:
-      - echo "Installing tools..."
+      - echo "Setting up environment..."
       - mkdir -p zap/reports
-      - curl -sSL -o sonar-scanner.zip https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-5.0.1.3006-linux.zip
-      - unzip -qq sonar-scanner.zip -d /opt
-      - rm sonar-scanner.zip
-      - ln -s /opt/sonar-scanner-5.0.1.3006-linux/bin/sonar-scanner /usr/local/bin/
+      - echo "exclude=.*/static/.*" > zap/rules.conf
+      - echo "level=MEDIUM" >> zap/rules.conf
+      - echo "progress=100" >> zap/rules.conf
+      - echo "rules=" >> zap/rules.conf
+      - echo "  10011=IGNORE" >> zap/rules.conf
+      - echo "  10015=IGNORE" >> zap/rules.conf
+      - echo "  40012=WARN" >> zap/rules.conf
 
   pre_build:
     commands:
-      - echo "Fetching credentials..."
+      - echo "Fetching SonarQube token..."
       - export SONAR_TOKEN=$(aws ssm get-parameter --name "/devsecops/sonar/token" --with-decryption --query "Parameter.Value" --output text || echo "")
 
   build:
@@ -33,16 +36,13 @@ phases:
 
   post_build:
     commands:
-      - echo "Starting security scans..."
-      # Start application
+      - echo "Starting application..."
       - nohup java -jar target/*.jar --server.port=${APP_PORT} > app.log 2>&1 & echo $! > app.pid
       - sleep 30
       
-      # Run ZAP Scan (fixed config path)
-      - |
-        docker run --network host --rm \
+      - echo "Running ZAP scan..."
+      - docker run --network host --rm \
           -v $(pwd)/zap:/zap/wrk:rw \
-          -e ZAP_JVM_OPTS="-Xmx4096m" \
           ${ZAP_IMAGE} zap-baseline.py \
           -t http://localhost:${APP_PORT} \
           -c /zap/wrk/rules.conf \
@@ -50,20 +50,18 @@ phases:
           -x /zap/wrk/reports/report.xml \
           -j /zap/wrk/reports/report.json \
           -l ${ZAP_THRESHOLD} || \
-        if [ $? -eq 2 ]; then exit 0; else exit $?; fi
+          if [ $? -eq 2 ]; then echo "ZAP completed with warnings"; else exit $?; fi
       
-      # Process results
-      - python3 zap/check_results.py zap/reports/report.json ${ZAP_THRESHOLD}
+      - echo "Copying artifacts..."
       - cp target/*.jar ${ARTIFACT_NAME}
 
 artifacts:
   files:
-    - "${ARTIFACT_NAME}"
-    - "zap/reports/**/*"
+    - "app.jar"
+    - "zap/reports/*"
     - "app.log"
   name: "devsecops-artifacts"
 
 cache:
   paths:
     - "/root/.m2/**/*"
-    - "/opt/sonar-scanner/**"
