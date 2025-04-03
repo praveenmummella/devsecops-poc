@@ -15,11 +15,12 @@ phases:
       java: corretto17
     commands:
       - echo "Installing dependencies..."
-      - yum install -y nc || apt-get update && apt-get install -y netcat
-      - echo "Creating PROPERLY FORMATED ZAP configuration..."
+      - yum install -y nc || { echo "Netcat installation failed"; exit 1; }
+      
+      - echo "Creating ZAP configuration..."
       - mkdir -p zap/reports
       - |
-        # Create config with ACTUAL TAB CHARACTERS
+        # Create properly formatted ZAP config
         {
           echo -e "exclude\t.*static/.*\tExclude static files"
           echo -e "progress\t100\t"
@@ -28,7 +29,7 @@ phases:
           echo -e "rules\t40012=WARN\t# CSP Header"
         } > zap/zap.conf
         
-        # VERIFICATION
+        # Verify configuration
         echo "=== ZAP Config Verification ==="
         echo "File contents:"
         cat zap/zap.conf
