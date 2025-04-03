@@ -16,41 +16,33 @@ phases:
     commands:
       - echo "Setting up environment..."
       - mkdir -p zap/reports
-      - echo "exclude=.*/static/.*" > zap/rules.conf
-      - echo "level=MEDIUM" >> zap/rules.conf
-      - echo "progress=100" >> zap/rules.conf
-      - echo "rules=" >> zap/rules.conf
-      - echo "  10011=IGNORE" >> zap/rules.conf
-      - echo "  10015=IGNORE" >> zap/rules.conf
-      - echo "  40012=WARN" >> zap/rules.conf
+      - echo -e "exclude=.*/static/.*\nlevel=MEDIUM\nprogress=100\nrules=\n  10011=IGNORE\n  10015=IGNORE\n  40012=WARN" > zap/rules.conf
 
   pre_build:
     commands:
-      - echo "Fetching SonarQube token..."
       - export SONAR_TOKEN=$(aws ssm get-parameter --name "/devsecops/sonar/token" --with-decryption --query "Parameter.Value" --output text || echo "")
 
   build:
     commands:
-      - echo "Building application..."
       - mvn -B clean package
 
   post_build:
     commands:
-      - echo "Starting application..."
+      - echo "Starting application on port ${APP_PORT}..."
       - nohup java -jar target/*.jar --server.port=${APP_PORT} > app.log 2>&1 & echo $! > app.pid
       - sleep 30
       
-      - echo "Running ZAP scan..."
-      - docker run --network host --rm \
-          -v $(pwd)/zap:/zap/wrk:rw \
-          ${ZAP_IMAGE} zap-baseline.py \
-          -t http://localhost:${APP_PORT} \
-          -c /zap/wrk/rules.conf \
-          -r /zap/wrk/reports/report.html \
-          -x /zap/wrk/reports/report.xml \
-          -j /zap/wrk/reports/report.json \
-          -l ${ZAP_THRESHOLD} || \
-          if [ $? -eq 2 ]; then echo "ZAP completed with warnings"; else exit $?; fi
+      - echo "Running ZAP DAST scan..."
+      - >
+        docker run --network host --rm
+        -v $(pwd)/zap:/zap/wrk:rw
+        ${ZAP_IMAGE} zap-baseline.py
+        -t http://localhost:${APP_PORT}
+        -c /zap/wrk/rules.conf
+        -r /zap/wrk/reports/report.html
+        -x /zap/wrk/reports/report.xml
+        -j /zap/wrk/reports/report.json
+        -l ${ZAP_THRESHOLD}
       
       - echo "Copying artifacts..."
       - cp target/*.jar ${ARTIFACT_NAME}
