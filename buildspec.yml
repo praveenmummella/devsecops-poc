@@ -2,8 +2,9 @@ version: 0.2
 env:
   parameter-store:
     SONAR_TOKEN: "/devsecops/sonar/token"
-    ZAP_THRESHOLD: "/devsecops/zap/threshold"
   variables:
+    # Default values if parameters don't exist
+    ZAP_THRESHOLD: "MEDIUM" 
     APP_PORT: "5000"
     SONAR_PROJECT_KEY: "devsecops-poc"
     ZAP_IMAGE: "ghcr.io/zaproxy/zaproxy:stable"
@@ -19,26 +20,35 @@ phases:
       - unzip -qq sonar-scanner.zip -d /opt
       - rm sonar-scanner.zip
       - ln -s /opt/sonar-scanner-5.0.1.3006-linux/bin/sonar-scanner /usr/local/bin/
+      - sonar-scanner --version
 
   pre_build:
     commands:
       - echo "Fetching credentials..."
-      - export SONAR_TOKEN=$(aws ssm get-parameter --name "/devsecops/sonar/token" --with-decryption --query "Parameter.Value" --output text)
-      - export ZAP_THRESHOLD=$(aws ssm get-parameter --name "/devsecops/zap/threshold" --query "Parameter.Value" --output text || echo "MEDIUM")
+      - export SONAR_TOKEN=$(aws ssm get-parameter --name "/devsecops/sonar/token" --with-decryption --query "Parameter.Value" --output text || echo "")
+      - export ZAP_THRESHOLD=${ZAP_THRESHOLD} # Uses default if parameter doesn't exist
       - mvn -B dependency:go-offline
 
   build:
     commands:
       - echo "Running build and analysis..."
-      - mvn -B clean verify org.jacoco:jacoco-maven-plugin:prepare-agent org.sonarsource.scanner.maven:sonar-maven-plugin:sonar -Dsonar.projectKey=${SONAR_PROJECT_KEY} -Dsonar.host.url=https://sonarcloud.io -Dsonar.login=${SONAR_TOKEN} -Dsonar.java.binaries=target/classes -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml
+      - mvn -B clean verify 
+          org.jacoco:jacoco-maven-plugin:prepare-agent 
+          org.sonarsource.scanner.maven:sonar-maven-plugin:sonar 
+          -Dsonar.projectKey=${SONAR_PROJECT_KEY} 
+          -Dsonar.host.url=https://sonarcloud.io 
+          -Dsonar.login=${SONAR_TOKEN} 
+          -Dsonar.java.binaries=target/classes 
+          -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml
       - mvn -B org.owasp:dependency-check-maven:check
 
   post_build:
     commands:
-      - echo "Starting security scan..."
+      - echo "Starting security scan with threshold: ${ZAP_THRESHOLD}"
       - APP_JAR=$(ls target/*.jar)
       - nohup java -jar ${APP_JAR} --server.port=${APP_PORT} > app.log 2>&1 & echo $! > app.pid
       - sleep 20
+      - timeout 60 bash -c 'until curl -sSf http://localhost:${APP_PORT}/actuator/health >/dev/null; do sleep 5; done'
       - docker run --network host --rm -v $(pwd)/zap:/zap/conf -v $(pwd):/zap/wrk ${ZAP_IMAGE} zap-baseline.py -t http://localhost:${APP_PORT} -c /zap/conf/zap.conf -r zap-report.html -x zap-report.xml -J zap-report.json -l ${ZAP_THRESHOLD}
       - python3 zap/check_zap_report.py zap-report.json ${ZAP_THRESHOLD} || exit 1
       - cp ${APP_JAR} ${ARTIFACT_NAME}
