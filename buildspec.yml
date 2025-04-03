@@ -20,7 +20,6 @@ phases:
       - echo "Creating ZAP configuration..."
       - mkdir -p zap/reports
       - |
-        # Create properly formatted ZAP config
         {
           echo -e "exclude\t.*static/.*\tExclude static files"
           echo -e "progress\t100\t"
@@ -29,14 +28,8 @@ phases:
           echo -e "rules\t40012=WARN\t# CSP Header"
         } > zap/zap.conf
         
-        # Verify configuration
         echo "=== ZAP Config Verification ==="
-        echo "File contents:"
         cat zap/zap.conf
-        echo -e "\nHex dump (09 = tab):"
-        hexdump -C zap/zap.conf | head -10
-        echo -e "\nField counts:"
-        awk -F'\t' '{print NR, NF}' zap/zap.conf
         echo "============================="
 
   pre_build:
@@ -58,8 +51,7 @@ phases:
 
       - echo "Running ZAP scan..."
       - >
-        docker run --rm \
-        --network host \
+        docker run --rm --network host \
         -v $(pwd)/zap:/zap/wrk:rw \
         ${ZAP_IMAGE} \
         zap-baseline.py -d -v \
