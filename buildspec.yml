@@ -20,13 +20,23 @@ phases:
       - echo "Creating ZAP configuration..."
       - mkdir -p zap/reports
       - |
-        {
-          echo -e "exclude\t.*static/.*\tExclude static files"
-          echo -e "progress\t100\t"
-          echo -e "rules\t10011=IGNORE\t# Cookie Without Secure Flag"
-          echo -e "rules\t10015=IGNORE\t# X-Content-Type-Options"
-          echo -e "rules\t40012=WARN\t# CSP Header"
-        } > zap/zap.conf
+        # Create properly formatted config file
+        cat > zap/zap.conf << 'EOL'
+exclude	^.*/static/.*	Exclude static files
+level	MEDIUM
+progress	100
+rules	10011=IGNORE	# Cookie Without Secure Flag
+rules	10015=IGNORE	# X-Content-Type-Options
+rules	40012=WARN	# CSP Header
+EOL
+        
+        # Verify configuration
+        echo "=== ZAP Config Verification ==="
+        echo "File contents:"
+        cat zap/zap.conf
+        echo -e "\nHex dump (09 = tab):"
+        hexdump -C zap/zap.conf | head -10
+        echo "============================="
 
   pre_build:
     commands:
@@ -46,17 +56,14 @@ phases:
       - if ! nc -zv localhost ${APP_PORT}; then echo "Application failed to start"; exit 1; fi
 
       - echo "Running ZAP scan..."
-      - >
-        docker run --rm --network host
-        -v $(pwd)/zap:/zap/wrk:rw
-        ${ZAP_IMAGE}
-        zap-baseline.py -d -v
-        -t http://localhost:${APP_PORT}
-        -c /zap/wrk/zap.conf
-        -r /zap/wrk/reports/report.html
-        -x /zap/wrk/reports/report.xml
-        -j /zap/wrk/reports/report.json
-        -l ${ZAP_THRESHOLD} || [ $? -eq 2 ] && echo "ZAP scan completed with warnings"
+      - docker run --rm --network host -v $(pwd)/zap:/zap/wrk:rw ${ZAP_IMAGE} zap-baseline.py \
+          -d -v \
+          -t "http://localhost:${APP_PORT}" \
+          -c "/zap/wrk/zap.conf" \
+          -r "/zap/wrk/reports/report.html" \
+          -x "/zap/wrk/reports/report.xml" \
+          -j "/zap/wrk/reports/report.json" \
+          -l "${ZAP_THRESHOLD}" || { [ $? -eq 2 ] && echo "ZAP scan completed with warnings"; }
 
       - cp target/*.jar ${ARTIFACT_NAME}
 
