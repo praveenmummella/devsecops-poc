@@ -20,40 +20,12 @@ phases:
       - echo "Creating ZAP configuration..."
       - mkdir -p zap/reports
       - |
-        # Create config with explicit tab characters
-        {
-          echo -e "exclude\t^.*/static/.*\tExclude static files"
-          echo -e "level\tMEDIUM\t"
-          echo -e "progress\t100\t"
-          echo -e "rules\t10011=IGNORE\tCookie Without Secure Flag"
-          echo -e "rules\t10015=IGNORE\tX-Content-Type-Options"
-          echo -e "rules\t40012=WARN\tCSP Header"
-        } > zap/zap.conf
-        
-        # Create run script
-        cat > run_zap.sh << 'EOL'
-#!/bin/bash
-docker run --rm --network host \
-  -v $(pwd)/zap:/zap/wrk:rw \
-  ${ZAP_IMAGE} \
-  zap-baseline.py \
-  -t "http://localhost:${APP_PORT}" \
-  -c "/zap/wrk/zap.conf" \
-  -r "/zap/wrk/reports/report.html" \
-  -x "/zap/wrk/reports/report.xml" \
-  -j "/zap/wrk/reports/report.json" \
-  -l "${ZAP_THRESHOLD}" \
-  -d -v
-EOL
-        chmod +x run_zap.sh
-
-        # Verify everything
-        echo "=== Verification ==="
-        echo "ZAP Config:"
-        cat zap/zap.conf
-        echo -e "\nRun Script:"
-        cat run_zap.sh
-        echo "===================="
+        printf "exclude\t^.*/static/.*\tExclude static files\n" > zap/zap.conf
+        printf "level\tMEDIUM\t\n" >> zap/zap.conf
+        printf "progress\t100\t\n" >> zap/zap.conf
+        printf "rules\t10011=IGNORE\tCookie Without Secure Flag\n" >> zap/zap.conf
+        printf "rules\t10015=IGNORE\tX-Content-Type-Options\n" >> zap/zap.conf
+        printf "rules\t40012=WARN\tCSP Header\n" >> zap/zap.conf
 
   pre_build:
     commands:
@@ -72,14 +44,31 @@ EOL
       - echo "Checking application..."
       - if ! nc -zv localhost ${APP_PORT}; then echo "Application failed to start"; exit 1; fi
 
-      - echo "Running ZAP scan..."
-      - ./run_zap.sh
-      - ZAP_EXIT_CODE=$?
-      - if [ $ZAP_EXIT_CODE -eq 0 ]; then
+      - |
+        echo "Running ZAP scan..."
+        docker run --rm --network host \
+          -v $(pwd)/zap:/zap/wrk:rw \
+          ${ZAP_IMAGE} \
+          zap-baseline.py \
+          -t "http://localhost:${APP_PORT}" \
+          -c "/zap/wrk/zap.conf" \
+          -r "/zap/wrk/reports/report.html" \
+          -x "/zap/wrk/reports/report.xml" \
+          -j "/zap/wrk/reports/report.json" \
+          -l "${ZAP_THRESHOLD}" \
+          -d -v
+        ZAP_EXIT_CODE=$?
+        if [ $ZAP_EXIT_CODE -eq 0 ]; then
           echo "ZAP scan completed successfully"
         elif [ $ZAP_EXIT_CODE -eq 2 ]; then
           echo "ZAP scan completed with warnings"
         else
+          echo "=== ZAP SCAN FAILURE ==="
+          echo "Exit code: $ZAP_EXIT_CODE"
+          echo "Config file contents:"
+          cat zap/zap.conf | sed 's/\t/|TAB|/g'
+          echo "Docker info:"
+          docker info
           exit $ZAP_EXIT_CODE
         fi
 
