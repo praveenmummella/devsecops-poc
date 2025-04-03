@@ -2,7 +2,7 @@ version: 0.2
 env:
   parameter-store:
     SONAR_TOKEN: "/devsecops/sonar/token"
-    ZAP_ALERT_THRESHOLD: "/devsecops/zap/threshold"
+    ZAP_THRESHOLD: "/devsecops/zap/threshold"
   variables:
     APP_PORT: "5000"
     SONAR_PROJECT_KEY: "devsecops-poc"
@@ -14,32 +14,32 @@ phases:
     runtime-versions:
       java: corretto17
     commands:
-      - echo "Java version: $(java -version 2>&1 | head -1)"
-      - echo "Maven version: $(mvn -v | head -1)"
-      - echo "Docker version: $(docker --version)"
-      - curl -sSL -o /tmp/sonar-scanner.zip https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-5.0.1.3006-linux.zip
-      - unzip -qq /tmp/sonar-scanner.zip -d /opt
-      - mv /opt/sonar-scanner-5.0.1.3006-linux /opt/sonar-scanner
-      - rm /tmp/sonar-scanner.zip
-      - export PATH="/opt/sonar-scanner/bin:${PATH}"
+      - echo "Installing tools..."
+      - curl -sSL -o sonar-scanner.zip https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-5.0.1.3006-linux.zip
+      - unzip -qq sonar-scanner.zip -d /opt
+      - rm sonar-scanner.zip
+      - ln -s /opt/sonar-scanner-5.0.1.3006-linux/bin/sonar-scanner /usr/local/bin/
 
   pre_build:
     commands:
+      - echo "Fetching credentials..."
       - export SONAR_TOKEN=$(aws ssm get-parameter --name "/devsecops/sonar/token" --with-decryption --query "Parameter.Value" --output text)
       - export ZAP_THRESHOLD=$(aws ssm get-parameter --name "/devsecops/zap/threshold" --query "Parameter.Value" --output text || echo "MEDIUM")
       - mvn -B dependency:go-offline
 
   build:
     commands:
-      - mvn -B clean verify org.jacoco:jacoco-maven-plugin:prepare-agent org.sonarsource.scanner.maven:sonar-maven-plugin:sonar org.owasp:dependency-check-maven:check -Dsonar.projectKey=${SONAR_PROJECT_KEY} -Dsonar.host.url=https://sonarcloud.io -Dsonar.login=${SONAR_TOKEN} -Dsonar.java.binaries=target/classes -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml
+      - echo "Running build and analysis..."
+      - mvn -B clean verify org.jacoco:jacoco-maven-plugin:prepare-agent org.sonarsource.scanner.maven:sonar-maven-plugin:sonar -Dsonar.projectKey=${SONAR_PROJECT_KEY} -Dsonar.host.url=https://sonarcloud.io -Dsonar.login=${SONAR_TOKEN} -Dsonar.java.binaries=target/classes -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml
+      - mvn -B org.owasp:dependency-check-maven:check
 
   post_build:
     commands:
+      - echo "Starting security scan..."
       - APP_JAR=$(ls target/*.jar)
       - nohup java -jar ${APP_JAR} --server.port=${APP_PORT} > app.log 2>&1 & echo $! > app.pid
       - sleep 20
-      - timeout 60 bash -c 'while ! curl -sSf http://localhost:${APP_PORT}/actuator/health >/dev/null; do sleep 5; done'
-      - docker run --network host --rm -v $(pwd)/zap:/zap/conf -v $(pwd):/zap/wrk ${ZAP_IMAGE} zap-baseline.py -t http://localhost:${APP_PORT}/ -c /zap/conf/zap.conf -J zap-report.json -x zap-report.xml -r zap-report.html -l ${ZAP_THRESHOLD}
+      - docker run --network host --rm -v $(pwd)/zap:/zap/conf -v $(pwd):/zap/wrk ${ZAP_IMAGE} zap-baseline.py -t http://localhost:${APP_PORT} -c /zap/conf/zap.conf -r zap-report.html -x zap-report.xml -J zap-report.json -l ${ZAP_THRESHOLD}
       - python3 zap/check_zap_report.py zap-report.json ${ZAP_THRESHOLD} || exit 1
       - cp ${APP_JAR} ${ARTIFACT_NAME}
       - kill -9 $(cat app.pid) || true
@@ -50,9 +50,7 @@ artifacts:
     - "target/site/**"
     - "zap-report.*"
     - "dependency-check-report.*"
-    - "app.log"
   name: "devsecops-artifacts-${CODEBUILD_BUILD_ID}"
-  discard-paths: yes
 
 cache:
   paths:
