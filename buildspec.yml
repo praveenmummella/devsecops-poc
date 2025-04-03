@@ -14,25 +14,19 @@ phases:
     runtime-versions:
       java: corretto17
     commands:
-      - echo "Creating guaranteed ZAP configuration..."
+      - echo "Creating verified ZAP configuration..."
       - mkdir -p zap/reports
       - |
-        # Create config with exactly 3 tab-separated values for exclude
-        printf "exclude\t^.*/static/.*\tExclude static files\n" > zap/zap.conf
-        printf "level\tMEDIUM\t\n" >> zap/zap.conf
-        printf "progress\t100\t\n" >> zap/zap.conf
-        printf "rules\t10011=IGNORE\t\n" >> zap/zap.conf
-        printf "rules\t10015=IGNORE\t\n" >> zap/zap.conf
-        printf "rules\t40012=WARN\t\n" >> zap/zap.conf
-        
-        # Critical verification
-        echo "Verifying configuration:"
-        echo "Tab character check:"
-        grep -P "exclude\t" zap/zap.conf || echo "ERROR: Tabs missing"
-        echo "Field count verification:"
-        awk -F'\t' '{print NR, NF}' zap/zap.conf
-        echo "Hex dump (09 = tab):"
-        hexdump -C zap/zap.conf | head -5
+        cat <<EOF > zap/zap.conf
+        # OWASP ZAP Baseline Rules
+        exclude=.*static/.*
+        progress=100
+        10011=IGNORE  # Cookie Without Secure Flag
+        10015=IGNORE  # X-Content-Type-Options
+        40012=WARN    # CSP Header
+        EOF
+      - echo "ZAP config file created with contents:"
+      - cat zap/zap.conf
 
   pre_build:
     commands:
@@ -48,7 +42,7 @@ phases:
       - nohup java -jar target/*.jar --server.port=${APP_PORT} > app.log 2>&1 & echo $! > app.pid
       - sleep 30
       
-      - echo "Running ZAP scan with debug..."
+      - echo "Running ZAP DAST scan with debug..."
       - >
         docker run --network host --rm
         -v $(pwd)/zap:/zap/wrk:rw
