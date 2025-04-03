@@ -18,12 +18,14 @@ phases:
       - mkdir -p zap/reports
       - |
         cat > zap/zap.conf << 'EOL'
-        # OWASP ZAP Baseline Rules
-        # Format for excludes: exclude\t<regex>\t<description>
-        exclude	^.*/static/.*	Static files exclusion
+        # ZAP Configuration File
+        # Exclusions must use format: exclude\t<regex>\t<optional_description>
+        exclude	^.*/static/.*	Exclude static files
         
-        # General settings
+        # Global scan level
         level	MEDIUM
+        
+        # Progress update interval (ms)
         progress	100
         
         # Custom rule adjustments
