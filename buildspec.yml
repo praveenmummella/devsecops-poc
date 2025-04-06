@@ -19,7 +19,7 @@ phases:
       
       - echo "Creating ZAP configuration..."
       - mkdir -p zap/reports
-      - |
+      - >
         cat > zap/zap.conf << 'EOL'
         exclude ^.*/static/.*
         level MEDIUM
@@ -27,7 +27,7 @@ phases:
         rules.10011=IGNORE
         rules.10015=IGNORE
         rules.40012=WARN
-        EOL
+EOL
 
   pre_build:
     commands:
