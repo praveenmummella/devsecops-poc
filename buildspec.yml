@@ -21,13 +21,13 @@ phases:
       - mkdir -p zap/reports
       - |
         cat > zap/zap.conf << 'EOL'
-exclude ^.*/static/.*
-level MEDIUM
-progress 100
-rules.10011=IGNORE
-rules.10015=IGNORE
-rules.40012=WARN
-EOL
+        exclude ^.*/static/.*
+        level MEDIUM
+        progress 100
+        rules.10011=IGNORE
+        rules.10015=IGNORE
+        rules.40012=WARN
+        EOL
 
   pre_build:
     commands:
