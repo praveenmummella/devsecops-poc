@@ -57,9 +57,9 @@ phases:
 
 artifacts:
   files:
-    - target/*.jar
-    - target/*.war
-    - $JACOCO_REPORT_PATH
-    - $JACOCO_REPORT_DIR/index.html
-    - $DEPENDENCY_CHECK_REPORT_PATH
+    - "target/*.jar"
+    - "target/*.war"
+    - "$JACOCO_REPORT_PATH"
+    - "$JACOCO_REPORT_DIR/index.html"
+    - "$DEPENDENCY_CHECK_REPORT_PATH"
   discard-paths: no
