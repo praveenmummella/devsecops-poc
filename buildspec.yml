@@ -52,7 +52,7 @@ EOL
       - |
         if [ $ZAP_EXIT_CODE -eq 0 ] || [ $ZAP_EXIT_CODE -eq 2 ]; then
           echo "ZAP scan completed successfully"
-          if [ $ZAP_EXIT_CODE -eq 2 ]; then echo "Scan completed with warnings"; fi
+          [ $ZAP_EXIT_CODE -eq 2 ] && echo "Scan completed with warnings"
         else
           echo "=== ZAP SCAN FAILURE ==="
           echo "Exit code: $ZAP_EXIT_CODE"
