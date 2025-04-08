@@ -15,30 +15,29 @@ phases:
     runtime-versions:
       java: corretto11
     commands:
-      - echo Installing Maven...
+      - echo "Installing Maven..."
       - yum install -y maven
 
   pre_build:
     commands:
-      - echo Pre-build started...
-      - echo SonarCloud Project Key: $SONAR_PROJECT_KEY
-      - echo SonarCloud Organization: $SONAR_ORGANIZATION
+      - echo "Pre-build phase started..."
+      - echo "SonarCloud Project Key: $SONAR_PROJECT_KEY"
+      - echo "SonarCloud Organization: $SONAR_ORGANIZATION"
 
   build:
     commands:
-      - echo Build phase started...
+      - echo "Build phase started..."
       - mvn clean verify jacoco:report org.owasp:dependency-check-maven:check
-      - echo Running SonarCloud analysis...
+      - echo "Running SonarCloud analysis..."
       - mvn sonar:sonar -Dsonar.projectKey=$SONAR_PROJECT_KEY -Dsonar.organization=$SONAR_ORGANIZATION -Dsonar.login=$SONAR_TOKEN
 
   post_build:
     commands:
-      - echo Post-build started...
-      - echo Listing JaCoCo report directory...
-      - ls -lR $JACOCO_REPORT_DIR || echo "JaCoCo directory not found"
-      - echo Uploading JaCoCo report to S3...
+      - echo "Post-build phase started..."
+      - echo "Uploading JaCoCo report to S3..."
+      - ls -lR $JACOCO_REPORT_DIR || echo "JaCoCo report not found"
       - aws s3 cp $JACOCO_REPORT_DIR s3://$REPORT_BUCKET/reports/jacoco/ --recursive --acl public-read
-      - echo Uploading Dependency Check report to S3...
+      - echo "Uploading Dependency Check report to S3..."
       - aws s3 cp $DEPENDENCY_CHECK_REPORT_PATH s3://$REPORT_BUCKET/reports/dependency-check-report.html --acl public-read
 
 artifacts:
