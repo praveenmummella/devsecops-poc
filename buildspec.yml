@@ -3,11 +3,9 @@ version: 0.2
 env:
   variables:
     REPORT_BUCKET: devsecopspocreports
-    JACOCO_REPORT_PATH: target/site/jacoco/index.html
     JACOCO_REPORT_DIR: target/site/jacoco
-    DEPENDENCY_CHECK_REPORT_PATH: target/dependency-check-report.html
+    DEPENDENCY_CHECK_REPORT: target/dependency-check-report.html
     JAVA_VERSION: 17
-    MAVEN_OPTS: -Dmaven.compiler.release=17
   parameter-store:
     SONAR_TOKEN: /devsecops/sonar/token
     SONAR_PROJECT_KEY: /devsecops/sonar/projectKey
@@ -22,7 +20,6 @@ phases:
       - yum install -y maven docker
       - service docker start
       - echo "Java version: $(java -version 2>&1 | head -1)"
-      - echo "Maven version: $(mvn -version | head -1)"
 
   pre_build:
     commands:
@@ -43,9 +40,9 @@ phases:
     commands:
       - echo "Post-build phase started..."
       - echo "Checking reports..."
-      - if [ -f "$JACOCO_REPORT_PATH" ]; then aws s3 cp $JACOCO_REPORT_DIR s3://$REPORT_BUCKET/reports/jacoco/ --recursive --acl public-read; else echo "JaCoCo report not found"; fi
-      - if [ -f "$DEPENDENCY_CHECK_REPORT_PATH" ]; then aws s3 cp $DEPENDENCY_CHECK_REPORT_PATH s3://$REPORT_BUCKET/reports/ --acl public-read; else echo "Dependency check report not found"; fi
-      - if [ $? -eq 0 ]; then mvn exec:exec@send-success-email; else mvn exec:exec@send-failure-email; fi
+      - bash -c 'if [ -f "target/site/jacoco/index.html" ]; then aws s3 cp target/site/jacoco s3://$REPORT_BUCKET/reports/jacoco/ --recursive --acl public-read; else echo "JaCoCo report not found"; fi'
+      - bash -c 'if [ -f "target/dependency-check-report.html" ]; then aws s3 cp target/dependency-check-report.html s3://$REPORT_BUCKET/reports/ --acl public-read; else echo "Dependency check report not found"; fi'
+      - bash -c 'if [ $? -eq 0 ]; then mvn exec:exec@send-success-email; else mvn exec:exec@send-failure-email; fi'
 
 artifacts:
   files:
