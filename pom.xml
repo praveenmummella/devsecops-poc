@@ -21,19 +21,17 @@
         <java.version>17</java.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
-        
-        <!-- Verified available versions -->
+
         <tomcat.version>10.1.20</tomcat.version>
         <logback.version>1.4.14</logback.version>
         <jackson-bom.version>2.16.1</jackson-bom.version>
-        
+
         <!-- Test -->
         <junit.jupiter.version>5.10.0</junit.jupiter.version>
         <mockito.version>5.5.0</mockito.version>
         <rest-assured.version>5.3.2</rest-assured.version>
-        
+
         <!-- Security Tools -->
-        <sonar.java.coveragePlugin>jacoco</sonar.java.coveragePlugin>
         <jacoco.version>0.8.11</jacoco.version>
         <owasp.dependency.check.version>8.4.0</owasp.dependency.check.version>
         <sonar-maven-plugin.version>3.11.0.3922</sonar-maven-plugin.version>
@@ -43,7 +41,6 @@
 
     <dependencyManagement>
         <dependencies>
-            <!-- Force Jackson versions -->
             <dependency>
                 <groupId>com.fasterxml.jackson</groupId>
                 <artifactId>jackson-bom</artifactId>
@@ -110,21 +107,11 @@
 
     <build>
         <plugins>
-            <!-- Spring Boot -->
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
-                <configuration>
-                    <excludes>
-                        <exclude>
-                            <groupId>org.projectlombok</groupId>
-                            <artifactId>lombok</artifactId>
-                        </exclude>
-                    </excludes>
-                </configuration>
             </plugin>
 
-            <!-- JaCoCo -->
             <plugin>
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>
@@ -132,23 +119,17 @@
                 <executions>
                     <execution>
                         <id>prepare-agent</id>
-                        <goals>
-                            <goal>prepare-agent</goal>
-                        </goals>
+                        <goals><goal>prepare-agent</goal></goals>
                     </execution>
                     <execution>
                         <id>report</id>
                         <phase>test</phase>
-                        <goals>
-                            <goal>report</goal>
-                        </goals>
+                        <goals><goal>report</goal></goals>
                     </execution>
                     <execution>
                         <id>check</id>
                         <phase>verify</phase>
-                        <goals>
-                            <goal>check</goal>
-                        </goals>
+                        <goals><goal>check</goal></goals>
                         <configuration>
                             <rules>
                                 <rule>
@@ -167,7 +148,6 @@
                 </executions>
             </plugin>
 
-            <!-- OWASP Dependency Check -->
             <plugin>
                 <groupId>org.owasp</groupId>
                 <artifactId>dependency-check-maven</artifactId>
@@ -175,9 +155,7 @@
                 <executions>
                     <execution>
                         <phase>verify</phase>
-                        <goals>
-                            <goal>check</goal>
-                        </goals>
+                        <goals><goal>check</goal></goals>
                     </execution>
                 </executions>
                 <configuration>
@@ -189,7 +167,6 @@
                 </configuration>
             </plugin>
 
-            <!-- SonarCloud -->
             <plugin>
                 <groupId>org.sonarsource.scanner.maven</groupId>
                 <artifactId>sonar-maven-plugin</artifactId>
@@ -198,14 +175,11 @@
                     <execution>
                         <id>sonar-analysis</id>
                         <phase>verify</phase>
-                        <goals>
-                            <goal>sonar</goal>
-                        </goals>
+                        <goals><goal>sonar</goal></goals>
                     </execution>
                 </executions>
             </plugin>
 
-            <!-- Surefire (Unit Tests) -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
@@ -223,7 +197,6 @@
                 </configuration>
             </plugin>
 
-            <!-- Failsafe (Integration Tests) -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-failsafe-plugin</artifactId>
@@ -238,7 +211,6 @@
                 </executions>
             </plugin>
 
-            <!-- Compiler Plugin -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
@@ -246,9 +218,7 @@
                 <configuration>
                     <source>${java.version}</source>
                     <target>${java.version}</target>
-                    <compilerArgs>
-                        <arg>-parameters</arg>
-                    </compilerArgs>
+                    <compilerArgs><arg>-parameters</arg></compilerArgs>
                 </configuration>
             </plugin>
         </plugins>
@@ -257,9 +227,7 @@
     <profiles>
         <profile>
             <id>sonar</id>
-            <activation>
-                <activeByDefault>true</activeByDefault>
-            </activation>
+            <activation><activeByDefault>true</activeByDefault></activation>
             <properties>
                 <sonar.host.url>https://sonarcloud.io</sonar.host.url>
                 <sonar.organization>praveenmummella</sonar.organization>
