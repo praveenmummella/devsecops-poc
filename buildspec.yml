@@ -1,58 +1,58 @@
 version: 0.2
 
 env:
-  parameter-store:
-    SONAR_TOKEN: /devsecops/sonarcloud/token
   variables:
-    SNS_TOPIC_ARN: arn:aws:sns:us-east-1:310188667383:build-notifications
-    S3_BUCKET: codepipeline-us-east-1-155921036588
-    PROJECT_NAME: devsecops-poc
+    PROJECT_KEY: "devsecops-poc"
+    ORGANIZATION: "praveenmummella"
+    SNS_TOPIC_ARN: "arn:aws:sns:us-east-1:310188667383:build-notifications"
+    SONAR_TOKEN_PARAM: "/devsecops/sonar/token"
+    S3_BUCKET: "codepipeline-us-east-1-310188667383"
 
 phases:
   install:
-    runtime-versions:
-      java: corretto11
     commands:
-      - echo "Installing required tools..."
-      - curl -s https://get.sdkman.io | bash
-      - source "$HOME/.sdkman/bin/sdkman-init.sh"
-      - sdk install maven
-      - curl -L -o dependency-check.zip https://github.com/jeremylong/DependencyCheck/releases/download/v8.4.0/dependency-check-8.4.0-release.zip
-      - unzip dependency-check.zip -d dependency-check
-      - export PATH=$PATH:$PWD/dependency-check/dependency-check
+      - echo Installing Maven...
+      - yum update -y
+      - yum install -y maven
+      - echo "Build environment is ready"
+
   pre_build:
     commands:
-      - echo "Running OWASP Dependency-Check..."
-      - dependency-check/bin/dependency-check.sh --project $PROJECT_NAME --scan . --format HTML --out reports
+      - echo Fetching SONAR token from Parameter Store...
+      - SONAR_TOKEN=$(aws ssm get-parameter --name "$SONAR_TOKEN_PARAM" --with-decryption --query "Parameter.Value" --output text)
+      - export SONAR_TOKEN
+      - echo "SONAR token fetched successfully"
+
   build:
     commands:
-      - echo "Building project with Maven..."
-      - mvn clean verify -Pcoverage
-      - echo "Running SonarCloud analysis..."
-      - mvn sonar:sonar -Dsonar.projectKey=devsecops-poc -Dsonar.organization=praveenmummella -Dsonar.host.url=https://sonarcloud.io -Dsonar.login=$SONAR_TOKEN
+      - echo Starting build...
+      - mvn clean verify
+      - echo "Running SonarQube (SAST)..."
+      - mvn sonar:sonar -Dsonar.projectKey=$PROJECT_KEY -Dsonar.organization=$ORGANIZATION -Dsonar.login=$SONAR_TOKEN
+      - echo "Running OWASP Dependency-Check (SCA)..."
+      - mvn org.owasp:dependency-check-maven:check
+      - echo Build completed
+
   post_build:
     commands:
-      - echo "Uploading reports to S3..."
+      - echo "Publishing reports to S3..."
       - aws s3 cp target/site/jacoco/index.html s3://$S3_BUCKET/reports/jacoco/index.html --acl public-read
-      - aws s3 cp reports/dependency-check-report.html s3://$S3_BUCKET/reports/sca/dependency-check-report.html --acl public-read
+      - aws s3 cp target/dependency-check-report.html s3://$S3_BUCKET/reports/sca/dependency-check-report.html --acl public-read
+
+      - echo "Sending SNS notification..."
       - |
-        BUILD_STATUS="SUCCESS"
-        MESSAGE="Build succeeded! 🚀"
-        if [ $? -ne 0 ]; then
-          BUILD_STATUS="FAILED"
-          MESSAGE="Build failed ❌. Please check CodeBuild logs."
+        if [ "$CODEBUILD_BUILD_SUCCEEDING" -eq 1 ]; then
+          STATUS="SUCCESS"
+        else
+          STATUS="FAILURE"
         fi
-
-        JACOCO_URL="https://$S3_BUCKET.s3.amazonaws.com/reports/jacoco/index.html"
-        SCA_URL="https://$S3_BUCKET.s3.amazonaws.com/reports/sca/dependency-check-report.html"
-        SONAR_URL="https://sonarcloud.io/project/overview?id=devsecops-poc"
-
-        PAYLOAD="Build Status: $BUILD_STATUS\n\nJaCoCo Report: $JACOCO_URL\nSCA Report: $SCA_URL\nSonarCloud: $SONAR_URL\n\n$MESSAGE"
-
-        aws sns publish --topic-arn $SNS_TOPIC_ARN --subject "CodeBuild: $PROJECT_NAME - $BUILD_STATUS" --message "$PAYLOAD"
+        REPORT_LINKS="Code Coverage (JaCoCo): https://$S3_BUCKET.s3.amazonaws.com/reports/jacoco/index.html%0A\
+SCA (OWASP Dependency Check): https://$S3_BUCKET.s3.amazonaws.com/reports/sca/dependency-check-report.html"
+        MESSAGE="Build Status: $STATUS%0AProject: $PROJECT_KEY%0A$REPORT_LINKS"
+        aws sns publish --topic-arn "$SNS_TOPIC_ARN" --subject "Build $STATUS - $PROJECT_KEY" --message "$MESSAGE"
 artifacts:
   files:
     - target/*.jar
-    - target/site/jacoco/index.html
-    - reports/dependency-check-report.html
-  discard-paths: yes
+    - target/*.war
+    - target/site/jacoco/**
+    - target/dependency-check-report.html
