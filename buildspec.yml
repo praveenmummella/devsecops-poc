@@ -26,6 +26,7 @@ phases:
 
   pre_build:
     commands:
+      - echo "Pre-build phase started..."
       - echo "Project Key: $SONAR_PROJECT_KEY"
       - echo "Organization: $SONAR_ORGANIZATION"
 
@@ -39,13 +40,9 @@ phases:
   post_build:
     commands:
       - echo "Post-build phase started..."
-      - echo "Listing JaCoCo report directory:"
       - ls -R $JACOCO_REPORT_DIR || echo "JaCoCo report not found!"
-      - echo "Uploading JaCoCo report to S3..."
       - aws s3 cp $JACOCO_REPORT_DIR s3://$REPORT_BUCKET/reports/jacoco/ --recursive --acl public-read
-      - echo "Uploading OWASP Dependency Check report to S3..."
       - aws s3 cp $DEPENDENCY_CHECK_REPORT_PATH s3://$REPORT_BUCKET/reports/dependency-check-report.html --acl public-read
-      - echo "Sending SNS email notification..."
       - mvn exec:exec@send-success-email || mvn exec:exec@send-failure-email
       - echo "Reports successfully uploaded to S3"
 
