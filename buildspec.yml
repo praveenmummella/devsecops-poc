@@ -1,71 +1,73 @@
----
+
 version: 0.2
 env:
   parameter-store:
-    SONAR_TOKEN: /devsecops/sonar/token
+    SONAR_TOKEN: "/devsecops/sonar/token"
   variables:
     APP_PORT: "5000"
-    SONAR_PROJECT_KEY: devsecops-poc
-    ZAP_IMAGE: ghcr.io/zaproxy/zaproxy:stable
-    ARTIFACT_NAME: app.jar
-    ZAP_THRESHOLD: MEDIUM
+    SONAR_PROJECT_KEY: "devsecops-poc"
+    ZAP_IMAGE: "ghcr.io/zaproxy/zaproxy:stable"
+    ARTIFACT_NAME: "app.jar"
+    ZAP_THRESHOLD: "MEDIUM"
+    ZAP_ALLOWED_EXIT_CODES: "0 2"  # Added to control acceptable exit codes
+
 phases:
   install:
     runtime-versions:
       java: corretto17
     commands:
       - echo "Installing dependencies..."
-      - yum install -y nc || { echo "Netcat installation failed"; exit 1; }
+      - yum install -y nc docker || { echo "Dependency installation failed"; exit 1; }
+      - service docker start || echo "Docker already running"
       - echo "Creating ZAP configuration..."
       - mkdir -p zap/reports
       - |
-        cat > zap/zap.conf << 'EOL'
-        exclude ^.*/static/.*
-        level MEDIUM
-        progress 100
-        rules.10011=IGNORE
-        rules.10015=IGNORE
-        rules.40012=WARN
-        EOL
+        echo "exclude ^.*/static/.*" > zap/zap.conf
+        echo "level ${ZAP_THRESHOLD}" >> zap/zap.conf
+        echo "progress 100" >> zap/zap.conf
+        echo "rules.10011=IGNORE" >> zap/zap.conf
+        echo "rules.10015=IGNORE" >> zap/zap.conf
+        echo "rules.40012=WARN" >> zap/zap.conf
+
   pre_build:
     commands:
-      - export SONAR_TOKEN=$(aws ssm get-parameter --name
-        "/devsecops/sonar/token" --with-decryption --query "Parameter.Value"
-        --output text || echo "")
+      - export SONAR_TOKEN=$(aws ssm get-parameter --name "/devsecops/sonar/token" --with-decryption --query "Parameter.Value" --output text || echo "")
+
   build:
     commands:
       - mvn -B clean package
+
   post_build:
     commands:
       - echo "Starting application..."
-      - nohup java -jar target/*.jar --server.port=${APP_PORT} > app.log 2>&1 &
-        echo $! > app.pid
+      - nohup java -jar target/*.jar --server.port=${APP_PORT} > app.log 2>&1 & echo $! > app.pid
       - sleep 30
       - echo "Checking application..."
-      - if ! nc -zv localhost ${APP_PORT}; then echo "Application failed to
-        start"; exit 1; fi
+      - if ! nc -zv localhost ${APP_PORT}; then echo "Application failed to start"; exit 1; fi
       - echo "Running ZAP scan..."
-      - docker run --rm --network host -v $(pwd)/zap:/zap/wrk:rw ${ZAP_IMAGE}
-        zap-baseline.py -t "http://localhost:${APP_PORT}" -g "/zap/wrk/zap.conf"
-        -r "/zap/wrk/reports/report.html" -x "/zap/wrk/reports/report.xml" -j
-        "/zap/wrk/reports/report.json" -l "${ZAP_THRESHOLD}" -d -v
+      - |
+        docker run --rm --network host           -v $(pwd)/zap:/zap/wrk:rw           ${ZAP_IMAGE} zap-baseline.py           -t "http://localhost:${APP_PORT}"           -g "/zap/wrk/zap.conf"           -r "/zap/wrk/reports/report.html"           -x "/zap/wrk/reports/report.xml"           -j "/zap/wrk/reports/report.json"           -l "${ZAP_THRESHOLD}"           -d -v
       - ZAP_EXIT_CODE=$?
-      - >
-        if [ $ZAP_EXIT_CODE -eq 0 ] || [ $ZAP_EXIT_CODE -eq 2 ]; then
-          echo "ZAP scan completed successfully"
-          if [ $ZAP_EXIT_CODE -eq 2 ]; then echo "Scan completed with warnings"; fi
+      - |
+        if [[ " ${ZAP_ALLOWED_EXIT_CODES} " =~ " ${ZAP_EXIT_CODE} " ]]; then
+          echo "ZAP scan completed with acceptable status (${ZAP_EXIT_CODE})"
+          echo "View reports in zap/reports directory"
         else
-          echo "=== ZAP SCAN FAILURE ==="
-          echo "Exit code: $ZAP_EXIT_CODE"
-          exit $ZAP_EXIT_CODE
+          echo "=== ZAP SCAN FAILED WITH UNACCEPTABLE FINDINGS ==="
+          echo "Exit code: ${ZAP_EXIT_CODE}"
+          echo "Threshold: ${ZAP_THRESHOLD}"
+          echo "Review reports in zap/reports before proceeding"
+          exit ${ZAP_EXIT_CODE}
         fi
       - cp target/*.jar ${ARTIFACT_NAME}
+
 artifacts:
   files:
-    - ${ARTIFACT_NAME}
-    - zap/reports/*
-    - app.log
-  name: devsecops-artifacts
+    - "${ARTIFACT_NAME}"
+    - "zap/reports/*"
+    - "app.log"
+  name: "devsecops-artifacts"
+
 cache:
   paths:
-    - /root/.m2/**/*
+    - "/root/.m2/**/*"
