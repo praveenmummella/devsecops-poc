@@ -46,10 +46,16 @@ phases:
         else
           STATUS="FAILURE"
         fi
-        REPORT_LINKS="Code Coverage (JaCoCo): https://$S3_BUCKET.s3.amazonaws.com/reports/jacoco/index.html%0A\
-SCA (OWASP Dependency Check): https://$S3_BUCKET.s3.amazonaws.com/reports/sca/dependency-check-report.html"
-        MESSAGE="Build Status: $STATUS%0AProject: $PROJECT_KEY%0A$REPORT_LINKS"
-        aws sns publish --topic-arn "$SNS_TOPIC_ARN" --subject "Build $STATUS - $PROJECT_KEY" --message "$MESSAGE"
+
+        REPORT_LINKS="Code Coverage (JaCoCo): https://$S3_BUCKET.s3.amazonaws.com/reports/jacoco/index.html\nSCA (OWASP Dependency Check): https://$S3_BUCKET.s3.amazonaws.com/reports/sca/dependency-check-report.html"
+
+        MESSAGE="Build Status: $STATUS\nProject: $PROJECT_KEY\n$REPORT_LINKS"
+
+        aws sns publish \
+          --topic-arn "$SNS_TOPIC_ARN" \
+          --subject "Build $STATUS - $PROJECT_KEY" \
+          --message "$MESSAGE"
+
 artifacts:
   files:
     - target/*.jar
