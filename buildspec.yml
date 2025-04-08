@@ -1,50 +1,62 @@
 version: 0.2
 
+env:
+  variables:
+    REPORT_BUCKET: devsecopspocreports
+    JACOCO_REPORT_PATH: target/site/jacoco/index.html
+    DEPENDENCY_CHECK_REPORT_PATH: target/dependency-check-report.html
+  parameter-store:
+    SONAR_TOKEN: /devsecops/sonar/token
+    SONAR_PROJECT_KEY: /devsecops/sonar/projectKey
+    SONAR_ORGANIZATION: /devsecops/sonar/organization
+
 phases:
   install:
     runtime-versions:
       java: corretto17
     commands:
-      - echo Entering INSTALL phase...
-      - echo Installing Maven...
-      - curl -sL https://downloads.apache.org/maven/maven-3/3.9.6/binaries/apache-maven-3.9.6-bin.zip -o maven.zip
-      - unzip maven.zip
-      - export M2_HOME=$PWD/apache-maven-3.9.6
-      - export PATH=$M2_HOME/bin:$PATH
-      - mvn -version
+      - echo Installing Sonar Scanner...
+      - curl -sSLo sonar-scanner.zip https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-5.0.1.3006.zip
+      - unzip sonar-scanner.zip
+      - mv sonar-scanner-* sonar-scanner
+      - export PATH=$PATH:$(pwd)/sonar-scanner/bin
 
   pre_build:
     commands:
-      - echo Entering PRE_BUILD phase...
-      - echo Running OWASP Dependency Check...
-      - mkdir -p dependency-check
-      - curl -L https://github.com/jeremylong/DependencyCheck/releases/download/v8.4.0/dependency-check-8.4.0-release.zip -o dc.zip
-      - unzip dc.zip -d dependency-check
-      - dependency-check/dependency-check/bin/dependency-check.sh --project car-rentals --scan . --format HTML --out .
-      - echo Logging in to SonarCloud...
-      - export SONAR_TOKEN=$(aws ssm get-parameter --name "sonar-token" --with-decryption --query Parameter.Value --output text)
-      - export SONAR_ORG=$(aws ssm get-parameter --name "sonar-org" --with-decryption --query Parameter.Value --output text)
+      - echo Pre-build started
 
   build:
     commands:
-      - echo Entering BUILD phase...
-      - mvn clean verify sonar:sonar \
-          -Dsonar.projectKey=car-rentals \
-          -Dsonar.organization=$SONAR_ORG \
+      - echo Starting Maven build...
+      - mvn clean verify
+      - echo Running SonarCloud scan...
+      - sonar-scanner \
+          -Dsonar.projectKey=$SONAR_PROJECT_KEY \
+          -Dsonar.organization=$SONAR_ORGANIZATION \
           -Dsonar.host.url=https://sonarcloud.io \
           -Dsonar.login=$SONAR_TOKEN
-      - echo Build completed
+      - echo Generating JaCoCo report...
+      - mvn jacoco:report
+      - echo Running OWASP Dependency Check...
+      - mvn org.owasp:dependency-check-maven:check -Dformat=HTML
 
   post_build:
     commands:
-      - echo Entering POST_BUILD phase...
-      - echo "Publishing reports to S3..."
-      - aws s3 cp target/site/jacoco/index.html s3://devsecopspocreports/reports/jacoco/index.html --acl public-read
-      - aws s3 cp dependency-check-report.html s3://devsecopspocreports/reports/dependency-check-report.html --acl public-read
+      - echo Uploading reports to S3...
+      - aws s3 cp $JACOCO_REPORT_PATH s3://$REPORT_BUCKET/reports/jacoco/index.html --acl public-read
+      - aws s3 cp $DEPENDENCY_CHECK_REPORT_PATH s3://$REPORT_BUCKET/reports/sca/dependency-check-report.html --acl public-read
+
+      - echo Sending SNS email notification...
+      - |
+        if [ $? -eq 0 ]; then
+          mvn exec:exec@send-success-email
+        else
+          mvn exec:exec@send-failure-email
+        fi
 
 artifacts:
   files:
     - target/*.jar
     - target/*.war
-    - target/site/jacoco/**
-    - dependency-check-report.html
+    - $JACOCO_REPORT_PATH
+    - $DEPENDENCY_CHECK_REPORT_PATH
