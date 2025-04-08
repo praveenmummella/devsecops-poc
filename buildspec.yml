@@ -6,8 +6,6 @@ env:
     JACOCO_REPORT_PATH: target/site/jacoco/index.html
     JACOCO_REPORT_DIR: target/site/jacoco
     DEPENDENCY_CHECK_REPORT_PATH: target/dependency-check-report.html
-    JAVA_VERSION: 17
-    MAVEN_OPTS: -Dmaven.compiler.release=17
   parameter-store:
     SONAR_TOKEN: /devsecops/sonar/token
     SONAR_PROJECT_KEY: /devsecops/sonar/projectKey
@@ -16,20 +14,21 @@ env:
 phases:
   install:
     runtime-versions:
-      java: corretto17
+      java: corretto11
     commands:
-      - echo "Installing dependencies..."
-      - yum install -y maven docker
-      - service docker start
-      - echo "Java version: $(java -version 2>&1 | head -1)"
-      - echo "Maven version: $(mvn -version | head -1)"
+      - echo "Installing Maven..."
+      - yum install -y maven
+      - echo "Installing SonarScanner..."
+      - curl -sSLo sonar-scanner.zip https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-5.0.1.3006.zip
+      - unzip sonar-scanner.zip
+      - mv sonar-scanner-* sonar-scanner
+      - export PATH=$PATH:$(pwd)/sonar-scanner/bin
 
   pre_build:
     commands:
       - echo "Pre-build phase started..."
       - echo "Project Key: $SONAR_PROJECT_KEY"
       - echo "Organization: $SONAR_ORGANIZATION"
-      - mkdir -p target/site/jacoco
 
   build:
     commands:
@@ -41,16 +40,17 @@ phases:
   post_build:
     commands:
       - echo "Post-build phase started..."
-      - echo "Uploading reports..."
-      - bash -c '[ -d "$JACOCO_REPORT_DIR" ] && aws s3 cp $JACOCO_REPORT_DIR s3://$REPORT_BUCKET/reports/jacoco/ --recursive --acl public-read || echo "JaCoCo report not found"'
-      - bash -c '[ -f "$DEPENDENCY_CHECK_REPORT_PATH" ] && aws s3 cp $DEPENDENCY_CHECK_REPORT_PATH s3://$REPORT_BUCKET/reports/ --acl public-read || echo "Dependency check report not found"'
-      - bash -c 'if [ $? -eq 0 ]; then mvn exec:exec@send-success-email; else mvn exec:exec@send-failure-email; fi'
+      - ls -R $JACOCO_REPORT_DIR || echo "JaCoCo report not found!"
+      - aws s3 cp $JACOCO_REPORT_DIR s3://$REPORT_BUCKET/reports/jacoco/ --recursive --acl public-read
+      - aws s3 cp $DEPENDENCY_CHECK_REPORT_PATH s3://$REPORT_BUCKET/reports/dependency-check-report.html --acl public-read
+      - echo "Sending SNS email notification..."
+      - mvn exec:exec@send-success-email || mvn exec:exec@send-failure-email
+      - echo "Reports successfully uploaded to S3"
 
 artifacts:
   files:
-    - "target/*.jar"
-    - "target/*.war"
-    - "target/site/jacoco/**/*"
-    - "target/dependency-check-report.html"
-  name: devsecops-artifacts
+    - target/*.jar
+    - target/*.war
+    - target/site/jacoco/index.html
+    - target/dependency-check-report.html
   discard-paths: no
