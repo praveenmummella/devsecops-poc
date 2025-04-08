@@ -1,4 +1,3 @@
-
 version: 0.2
 env:
   parameter-store:
@@ -9,7 +8,7 @@ env:
     ZAP_IMAGE: "ghcr.io/zaproxy/zaproxy:stable"
     ARTIFACT_NAME: "app.jar"
     ZAP_THRESHOLD: "MEDIUM"
-    ZAP_ALLOWED_EXIT_CODES: "0 2"  # Added to control acceptable exit codes
+    ZAP_ALLOWED_EXIT_CODES: "0 2"
 
 phases:
   install:
@@ -35,30 +34,41 @@ phases:
 
   build:
     commands:
+      - echo "Packaging application..."
       - mvn -B clean package
 
   post_build:
     commands:
-      - echo "Starting application..."
+      - echo "Starting application on port ${APP_PORT}..."
       - nohup java -jar target/*.jar --server.port=${APP_PORT} > app.log 2>&1 & echo $! > app.pid
       - sleep 30
-      - echo "Checking application..."
+      - echo "Checking if application is reachable..."
       - if ! nc -zv localhost ${APP_PORT}; then echo "Application failed to start"; exit 1; fi
+
       - echo "Running ZAP scan..."
       - |
-        docker run --rm --network host           -v $(pwd)/zap:/zap/wrk:rw           ${ZAP_IMAGE} zap-baseline.py           -t "http://localhost:${APP_PORT}"           -g "/zap/wrk/zap.conf"           -r "/zap/wrk/reports/report.html"           -x "/zap/wrk/reports/report.xml"           -j "/zap/wrk/reports/report.json"           -l "${ZAP_THRESHOLD}"           -d -v
+        docker run --rm --network host \
+          -v $(pwd)/zap:/zap/wrk:rw \
+          ${ZAP_IMAGE} zap-baseline.py \
+          -t "http://localhost:${APP_PORT}" \
+          -g "/zap/wrk/zap.conf" \
+          -r "/zap/wrk/reports/report.html" \
+          -x "/zap/wrk/reports/report.xml" \
+          -j "/zap/wrk/reports/report.json" \
+          -l "${ZAP_THRESHOLD}" \
+          -d -v
+
       - ZAP_EXIT_CODE=$?
       - |
         if [[ " ${ZAP_ALLOWED_EXIT_CODES} " =~ " ${ZAP_EXIT_CODE} " ]]; then
-          echo "ZAP scan completed with acceptable status (${ZAP_EXIT_CODE})"
-          echo "View reports in zap/reports directory"
+          echo "✅ ZAP scan completed with acceptable status (${ZAP_EXIT_CODE})"
         else
-          echo "=== ZAP SCAN FAILED WITH UNACCEPTABLE FINDINGS ==="
-          echo "Exit code: ${ZAP_EXIT_CODE}"
-          echo "Threshold: ${ZAP_THRESHOLD}"
-          echo "Review reports in zap/reports before proceeding"
+          echo "❌ ZAP SCAN FAILED with unacceptable exit code (${ZAP_EXIT_CODE})"
+          echo "Review reports in zap/reports"
           exit ${ZAP_EXIT_CODE}
         fi
+
+      - echo "Copying JAR for artifact output..."
       - cp target/*.jar ${ARTIFACT_NAME}
 
 artifacts:
