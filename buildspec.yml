@@ -17,8 +17,8 @@ phases:
   pre_build:
     commands:
       - echo "Pre-build phase started..."
-      - echo "SonarCloud Project Key: my-project-key"
-      - echo "SonarCloud Organization: my-org"
+      - echo "SonarCloud Project Key: devsecops-poc"
+      - echo "SonarCloud Organization: praveenmummella"
 
   build:
     commands:
