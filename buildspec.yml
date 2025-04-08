@@ -26,7 +26,6 @@ phases:
 
   pre_build:
     commands:
-      - echo "Pre-build phase started..."
       - echo "Project Key: $SONAR_PROJECT_KEY"
       - echo "Organization: $SONAR_ORGANIZATION"
 
