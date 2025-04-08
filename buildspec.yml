@@ -34,11 +34,21 @@ phases:
   post_build:
     commands:
       - echo "Post-build phase started..."
-      - echo "Uploading JaCoCo report to S3..."
-      - ls -lR $JACOCO_REPORT_DIR || echo "JaCoCo report not found"
-      - aws s3 cp $JACOCO_REPORT_DIR s3://$REPORT_BUCKET/reports/jacoco/ --recursive --acl public-read
+      - echo "Checking if JaCoCo report directory exists..."
+      - |
+        if [ -d "$JACOCO_REPORT_DIR" ]; then
+          echo "JaCoCo report found, uploading..."
+          aws s3 cp "$JACOCO_REPORT_DIR" "s3://$REPORT_BUCKET/reports/jacoco/" --recursive --acl public-read
+        else
+          echo "JaCoCo report directory not found!"
+        fi
       - echo "Uploading Dependency Check report to S3..."
-      - aws s3 cp $DEPENDENCY_CHECK_REPORT_PATH s3://$REPORT_BUCKET/reports/dependency-check-report.html --acl public-read
+      - |
+        if [ -f "$DEPENDENCY_CHECK_REPORT_PATH" ]; then
+          aws s3 cp "$DEPENDENCY_CHECK_REPORT_PATH" "s3://$REPORT_BUCKET/reports/dependency-check-report.html" --acl public-read
+        else
+          echo "Dependency Check report not found!"
+        fi
 
 artifacts:
   files:
