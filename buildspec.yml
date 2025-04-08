@@ -47,12 +47,7 @@ phases:
       - echo "Uploading OWASP Dependency Check report to S3..."
       - aws s3 cp $DEPENDENCY_CHECK_REPORT_PATH s3://$REPORT_BUCKET/reports/dependency-check-report.html --acl public-read
       - echo "Sending SNS email notification..."
-      - |
-        if [ $? -eq 0 ]; then
-          mvn exec:exec@send-success-email
-        else
-          mvn exec:exec@send-failure-email
-        fi
+      - mvn exec:exec@send-success-email || mvn exec:exec@send-failure-email
       - echo "Reports successfully uploaded to S3"
 
 artifacts:
