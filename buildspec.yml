@@ -2,59 +2,47 @@ version: 0.2
 
 env:
   variables:
-    PROJECT_KEY: "devsecops-poc"
-    ORGANIZATION: "praveenmummella"
+    S3_BUCKET: "devsecopspocreports"
+    SONAR_PROJECT_KEY: "devsecops-poc"
+    SONAR_ORGANIZATION: "praveenmummella"
     SNS_TOPIC_ARN: "arn:aws:sns:us-east-1:310188667383:build-notifications"
-    SONAR_TOKEN_PARAM: "/devsecops/sonar/token"
-    S3_BUCKET: "codepipeline-us-east-1-310188667383"
+  parameter-store:
+    SONAR_TOKEN: "/devsecops/sonar/token"
 
 phases:
   install:
+    runtime-versions:
+      java: corretto17
     commands:
-      - echo Installing Maven...
-      - yum update -y
+      - echo "Installing Maven..."
       - yum install -y maven
-      - echo "Build environment is ready"
 
   pre_build:
     commands:
-      - echo Fetching SONAR token from Parameter Store...
-      - SONAR_TOKEN=$(aws ssm get-parameter --name "$SONAR_TOKEN_PARAM" --with-decryption --query "Parameter.Value" --output text)
-      - export SONAR_TOKEN
-      - echo "SONAR token fetched successfully"
+      - echo "Running OWASP Dependency Check (SCA)..."
+      - mvn org.owasp:dependency-check-maven:check
 
   build:
     commands:
-      - echo Starting build...
+      - echo "Building and testing the application..."
       - mvn clean verify
-      - echo "Running SonarQube (SAST)..."
-      - mvn sonar:sonar -Dsonar.projectKey=$PROJECT_KEY -Dsonar.organization=$ORGANIZATION -Dsonar.login=$SONAR_TOKEN
-      - echo "Running OWASP Dependency-Check (SCA)..."
-      - mvn org.owasp:dependency-check-maven:check
-      - echo Build completed
+      - echo "Generating JaCoCo code coverage report..."
+      - mvn jacoco:report
+      - echo "Running SonarCloud analysis..."
+      - mvn sonar:sonar -Dsonar.projectKey=$SONAR_PROJECT_KEY -Dsonar.organization=$SONAR_ORGANIZATION -Dsonar.host.url=https://sonarcloud.io -Dsonar.login=$SONAR_TOKEN
 
   post_build:
     commands:
-      - echo "Publishing reports to S3..."
-      - aws s3 cp target/site/jacoco/index.html s3://$S3_BUCKET/reports/jacoco/index.html --acl public-read
-      - aws s3 cp target/dependency-check-report.html s3://$S3_BUCKET/reports/sca/dependency-check-report.html --acl public-read
-
-      - echo "Sending SNS notification..."
+      - echo "Uploading reports to S3..."
+      - aws s3 cp target/site/jacoco/index.html s3://$S3_BUCKET/reports/jacoco/index.html --acl public-read || echo "JaCoCo report not found."
+      - aws s3 cp target/dependency-check-report.html s3://$S3_BUCKET/reports/dependency-check-report.html --acl public-read || echo "SCA report not found."
       - |
-        if [ "$CODEBUILD_BUILD_SUCCEEDING" -eq 1 ]; then
-          STATUS="SUCCESS"
-        else
-          STATUS="FAILURE"
-        fi
-
-        REPORT_LINKS="Code Coverage (JaCoCo): https://$S3_BUCKET.s3.amazonaws.com/reports/jacoco/index.html\nSCA (OWASP Dependency Check): https://$S3_BUCKET.s3.amazonaws.com/reports/sca/dependency-check-report.html"
-
-        MESSAGE="Build Status: $STATUS\nProject: $PROJECT_KEY\n$REPORT_LINKS"
-
-        aws sns publish \
-          --topic-arn "$SNS_TOPIC_ARN" \
-          --subject "Build $STATUS - $PROJECT_KEY" \
-          --message "$MESSAGE"
+        echo "Sending SNS notification..."
+        SUBJECT="Build Notification: $CODEBUILD_BUILD_SUCCEEDING"
+        MESSAGE="Build Completed. Reports available at:\n"
+        MESSAGE+="JaCoCo Report: https://$S3_BUCKET.s3.amazonaws.com/reports/jacoco/index.html\n"
+        MESSAGE+="SCA Report: https://$S3_BUCKET.s3.amazonaws.com/reports/dependency-check-report.html\n"
+        aws sns publish --topic-arn $SNS_TOPIC_ARN --subject "$SUBJECT" --message "$MESSAGE"
 
 artifacts:
   files:
