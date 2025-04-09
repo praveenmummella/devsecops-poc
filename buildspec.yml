@@ -48,9 +48,8 @@ phases:
       "aws s3 cp $JACOCO_REPORT_DIR s3://$REPORT_BUCKET/reports/jacoco/ --recursive --acl public-read",
       "echo 'Uploading OWASP Dependency Check report to S3...'",
       "aws s3 cp $DEPENDENCY_CHECK_REPORT_PATH s3://$REPORT_BUCKET/reports/dependency-check-report.html --acl public-read",
-      "echo 'Sending SNS email notification...'",
-      "BUILD_STATUS=$?",
-      "if [ $BUILD_STATUS -eq 0 ]; then mvn exec:exec@send-success-email; else mvn exec:exec@send-failure-email; fi",
+      "echo 'Sending SNS email notification based on build status...'",
+      "bash -c 'if [ $? -eq 0 ]; then mvn exec:exec@send-success-email; else mvn exec:exec@send-failure-email; fi'",
       "echo 'Reports uploaded and notification sent.'"
     ]
 
