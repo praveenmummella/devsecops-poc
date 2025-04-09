@@ -16,10 +16,9 @@ phases:
     runtime-versions:
       java: corretto17
     commands: [
-      "echo 'Installing Maven...'",
+      "echo 'Installing Maven and SonarScanner...'",
       "apt-get update -y",
-      "apt-get install -y maven",
-      "echo 'Installing SonarScanner...'",
+      "apt-get install -y maven unzip",
       "curl -sSLo sonar-scanner.zip https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-5.0.1.3006.zip",
       "unzip sonar-scanner.zip",
       "mv sonar-scanner-* sonar-scanner",
@@ -43,15 +42,13 @@ phases:
   post_build:
     commands: [
       "echo 'Post-build phase started...'",
-      "echo 'Listing JaCoCo report directory:'",
-      "ls -R $JACOCO_REPORT_DIR || echo 'JaCoCo report not found!'",
+      "BUILD_SUCCESS=true",
       "echo 'Uploading JaCoCo report to S3...'",
-      "aws s3 cp $JACOCO_REPORT_DIR s3://$REPORT_BUCKET/reports/jacoco/ --recursive --acl public-read",
-      "echo 'Uploading OWASP Dependency Check report to S3...'",
-      "aws s3 cp $DEPENDENCY_CHECK_REPORT_PATH s3://$REPORT_BUCKET/reports/dependency-check-report.html --acl public-read",
-      "echo 'Sending SNS email notification based on build status...'",
-      "bash -c 'if [ $? -eq 0 ]; then mvn exec:exec@send-success-email; else mvn exec:exec@send-failure-email; fi'",
-      "echo 'Reports uploaded and notification sent.'"
+      "aws s3 cp $JACOCO_REPORT_DIR s3://$REPORT_BUCKET/reports/jacoco/ --recursive --acl public-read || BUILD_SUCCESS=false",
+      "echo 'Uploading Dependency Check report to S3...'",
+      "aws s3 cp $DEPENDENCY_CHECK_REPORT_PATH s3://$REPORT_BUCKET/reports/dependency-check-report.html --acl public-read || BUILD_SUCCESS=false",
+      "if [ \"$BUILD_SUCCESS\" = true ]; then echo 'Sending success SNS notification...'; mvn exec:exec@send-success-email; else echo 'Sending failure SNS notification...'; mvn exec:exec@send-failure-email; fi",
+      "echo 'Post-build steps completed.'"
     ]
 
 artifacts:
