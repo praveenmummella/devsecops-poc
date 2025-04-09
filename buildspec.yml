@@ -16,57 +16,39 @@ phases:
   install:
     runtime-versions:
       java: corretto17
-    commands:
-      - echo "Installing Maven and SonarScanner..."
-      - apt-get update -y
-      - apt-get install -y maven unzip
-      - curl -sSLo sonar-scanner.zip https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-5.0.1.3006.zip
-      - unzip sonar-scanner.zip
-      - mv sonar-scanner-* sonar-scanner
-      - export PATH=$PATH:$(pwd)/sonar-scanner/bin
+    commands: [
+      "echo 'Installing Maven and SonarScanner...'",
+      "apt-get update -y",
+      "apt-get install -y maven unzip",
+      "curl -sSLo sonar-scanner.zip https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-5.0.1.3006.zip",
+      "unzip sonar-scanner.zip",
+      "mv sonar-scanner-* sonar-scanner",
+      "export PATH=$PATH:$(pwd)/sonar-scanner/bin"
+    ]
 
   pre_build:
-    commands:
-      - echo "Pre-build phase started..."
-      - echo "Project Key: $SONAR_PROJECT_KEY"
-      - echo "Organization: $SONAR_ORGANIZATION"
+    commands: [
+      "echo 'Pre-build phase started...'",
+      "echo 'Project Key: $SONAR_PROJECT_KEY'",
+      "echo 'Organization: $SONAR_ORGANIZATION'"
+    ]
 
   build:
-    commands:
-      - echo "Build phase started..."
-      - |
-        {
-          mvn clean verify jacoco:report \
-            org.owasp:dependency-check-maven:check \
-            -Dnvd.api.key=$NVD_API_KEY
-        } || echo "Build phase failed, but continuing to upload reports."
-      - |
-        {
-          sonar-scanner \
-            -Dsonar.projectKey=$SONAR_PROJECT_KEY \
-            -Dsonar.organization=$SONAR_ORGANIZATION \
-            -Dsonar.host.url=https://sonarcloud.io \
-            -Dsonar.login=$SONAR_TOKEN
-        } || echo "SonarScanner failed."
+    commands: [
+      "echo 'Build phase started...'",
+      "mvn clean verify jacoco:report org.owasp:dependency-check-maven:check -Dnvd.api.key=$NVD_API_KEY || echo 'Maven build or dependency check failed but continuing...'",
+      "sonar-scanner -Dsonar.projectKey=$SONAR_PROJECT_KEY -Dsonar.organization=$SONAR_ORGANIZATION -Dsonar.host.url=https://sonarcloud.io -Dsonar.login=$SONAR_TOKEN || echo 'Sonar analysis failed but continuing...'"
+    ]
 
   post_build:
-    commands:
-      - echo "Post-build phase started..."
-      - echo "Uploading JaCoCo report to S3..."
-      - |
-        if [ -f "$JACOCO_REPORT_PATH" ]; then
-          aws s3 cp $JACOCO_REPORT_DIR s3://$REPORT_BUCKET/reports/jacoco/ --recursive --acl public-read
-        else
-          echo "JaCoCo report not found!"
-        fi
-      - echo "Uploading Dependency Check report to S3..."
-      - |
-        if [ -f "$DEPENDENCY_CHECK_REPORT_PATH" ]; then
-          aws s3 cp $DEPENDENCY_CHECK_REPORT_PATH s3://$REPORT_BUCKET/reports/dependency-check-report.html --acl public-read
-        else
-          echo "Dependency check report not found!"
-        fi
-      - echo "Skipping email notifications until exec plugin is fixed."
+    commands: [
+      "echo 'Post-build phase started...'",
+      "echo 'Uploading JaCoCo report to S3 if exists...'",
+      "[ -f $JACOCO_REPORT_PATH ] && aws s3 cp $JACOCO_REPORT_DIR s3://$REPORT_BUCKET/reports/jacoco/ --recursive --acl public-read || echo 'JaCoCo report not found!'",
+      "echo 'Uploading Dependency Check report to S3 if exists...'",
+      "[ -f $DEPENDENCY_CHECK_REPORT_PATH ] && aws s3 cp $DEPENDENCY_CHECK_REPORT_PATH s3://$REPORT_BUCKET/reports/dependency-check-report.html --acl public-read || echo 'Dependency check report not found!'",
+      "echo 'Skipping email notifications until exec plugin is fixed.'"
+    ]
 
 artifacts:
   files:
