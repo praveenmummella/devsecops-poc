@@ -42,20 +42,17 @@ phases:
   post_build:
     commands: [
       "echo 'Post-build phase started...'",
-      "BUILD_SUCCESS=true",
-      "echo 'Uploading JaCoCo report to S3...'",
-      "aws s3 cp $JACOCO_REPORT_DIR s3://$REPORT_BUCKET/reports/jacoco/ --recursive --acl public-read || BUILD_SUCCESS=false",
-      "echo 'Uploading Dependency Check report to S3...'",
-      "aws s3 cp $DEPENDENCY_CHECK_REPORT_PATH s3://$REPORT_BUCKET/reports/dependency-check-report.html --acl public-read || BUILD_SUCCESS=false",
-      "if [ \"$BUILD_SUCCESS\" = true ]; then echo 'Sending success SNS notification...'; mvn exec:exec@send-success-email; else echo 'Sending failure SNS notification...'; mvn exec:exec@send-failure-email; fi",
-      "echo 'Post-build steps completed.'"
+      "echo 'Uploading JaCoCo report to S3 if exists...'",
+      "[ -f $JACOCO_REPORT_PATH ] && aws s3 cp $JACOCO_REPORT_DIR s3://$REPORT_BUCKET/reports/jacoco/ --recursive --acl public-read || echo 'JaCoCo report not found!'",
+      "echo 'Uploading Dependency Check report to S3 if exists...'",
+      "[ -f $DEPENDENCY_CHECK_REPORT_PATH ] && aws s3 cp $DEPENDENCY_CHECK_REPORT_PATH s3://$REPORT_BUCKET/reports/dependency-check-report.html --acl public-read || echo 'Dependency check report not found!'",
+      "echo 'Skipping email notifications until exec plugin is fixed.'"
     ]
 
 artifacts:
   files:
     - "target/*.jar"
     - "target/*.war"
-    - "$JACOCO_REPORT_PATH"
-    - "$JACOCO_REPORT_DIR/index.html"
-    - "$DEPENDENCY_CHECK_REPORT_PATH"
+    - "target/site/jacoco/index.html"
+    - "target/dependency-check-report.html"
   discard-paths: no
