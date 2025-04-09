@@ -18,8 +18,9 @@ phases:
     runtime-versions:
       java: corretto17
     commands: [
-      "echo 'Installing dependencies...'",
-      "yum install -y maven docker unzip",
+      "echo 'Setting up Ubuntu environment...'",
+      "apt-get update -y",
+      "apt-get install -y maven unzip docker.io",
       "service docker start",
       "curl -sSLo sonar-scanner.zip https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-5.0.1.3006.zip",
       "unzip sonar-scanner.zip",
@@ -49,9 +50,10 @@ phases:
   post_build:
     commands: [
       "echo 'Post-build phase started...'",
-      "echo 'Uploading reports to S3...'",
+      "echo 'Checking reports...'",
       "[ -d $JACOCO_REPORT_DIR ] && aws s3 cp $JACOCO_REPORT_DIR s3://$REPORT_BUCKET/reports/jacoco/ --recursive --acl public-read || echo 'JaCoCo report not found'",
       "[ -f $DEPENDENCY_CHECK_REPORT_PATH ] && aws s3 cp $DEPENDENCY_CHECK_REPORT_PATH s3://$REPORT_BUCKET/reports/ --acl public-read || echo 'Dependency check report not found'",
+      "echo 'Sending email notification...'",
       "if [ $? -eq 0 ]; then mvn exec:exec@send-success-email; else mvn exec:exec@send-failure-email; fi"
     ]
 
