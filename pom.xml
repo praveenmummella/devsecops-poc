@@ -17,19 +17,12 @@
     <version>0.0.1-SNAPSHOT</version>
     <name>devsecops-poc</name>
     <description>DevSecOps POC for AWS CodePipeline</description>
+    <packaging>jar</packaging>
 
     <properties>
         <java.version>17</java.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
-
-        <tomcat.version>10.1.20</tomcat.version>
-        <logback.version>1.4.14</logback.version>
-        <jackson-bom.version>2.16.1</jackson-bom.version>
-
-        <junit.jupiter.version>5.10.0</junit.jupiter.version>
-        <mockito.version>5.5.0</mockito.version>
-        <rest-assured.version>5.3.2</rest-assured.version>
 
         <jacoco.version>0.8.12</jacoco.version>
         <owasp.dependency.check.version>9.0.9</owasp.dependency.check.version>
@@ -38,34 +31,30 @@
         <failsafe.version>3.2.3</failsafe.version>
     </properties>
 
-    <build>
-        <resources>
-            <resource>
-                <directory>src/main/resources</directory>
-                <filtering>true</filtering>
-            </resource>
-        </resources>
-        <testResources>
-            <testResource>
-                <directory>src/test/resources</directory>
-                <filtering>true</filtering>
-            </testResource>
-        </testResources>
+    <dependencies>
+        <!-- Spring Boot Web Starter -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
 
+        <!-- Spring Boot Test Starter -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
         <plugins>
+            <!-- Spring Boot Maven Plugin -->
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
-                <configuration>
-                    <excludes>
-                        <exclude>
-                            <groupId>org.projectlombok</groupId>
-                            <artifactId>lombok</artifactId>
-                        </exclude>
-                    </excludes>
-                </configuration>
             </plugin>
 
+            <!-- JaCoCo Plugin -->
             <plugin>
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>
@@ -85,6 +74,11 @@
                         </goals>
                         <configuration>
                             <outputDirectory>${project.reporting.outputDirectory}/jacoco</outputDirectory>
+                            <outputEncoding>UTF-8</outputEncoding>
+                            <formats>
+                                <format>HTML</format>
+                                <format>XML</format> <!-- Required for Sonar -->
+                            </formats>
                         </configuration>
                     </execution>
                     <execution>
@@ -95,15 +89,15 @@
                         </goals>
                         <configuration>
                             <rules>
-                                <rule implementation="org.jacoco.maven.RuleConfiguration">
+                                <rule>
                                     <element>BUNDLE</element>
                                     <limits>
-                                        <limit implementation="org.jacoco.report.check.Limit">
+                                        <limit>
                                             <counter>LINE</counter>
                                             <value>COVEREDRATIO</value>
                                             <minimum>0.80</minimum>
                                         </limit>
-                                        <limit implementation="org.jacoco.report.check.Limit">
+                                        <limit>
                                             <counter>BRANCH</counter>
                                             <value>COVEREDRATIO</value>
                                             <minimum>0.70</minimum>
@@ -116,6 +110,7 @@
                 </executions>
             </plugin>
 
+            <!-- OWASP Dependency Check Plugin -->
             <plugin>
                 <groupId>org.owasp</groupId>
                 <artifactId>dependency-check-maven</artifactId>
@@ -132,27 +127,24 @@
                 </configuration>
             </plugin>
 
+            <!-- Sonar Scanner Plugin -->
             <plugin>
                 <groupId>org.sonarsource.scanner.maven</groupId>
                 <artifactId>sonar-maven-plugin</artifactId>
                 <version>${sonar-maven-plugin.version}</version>
             </plugin>
 
+            <!-- Compiler Plugin -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
                 <version>3.11.0</version>
                 <configuration>
                     <release>${java.version}</release>
-                    <compilerArgs>
-                        <arg>-parameters</arg>
-                        <arg>-Xlint:all</arg>
-                    </compilerArgs>
-                    <showWarnings>true</showWarnings>
-                    <showDeprecation>true</showDeprecation>
                 </configuration>
             </plugin>
 
+            <!-- Enforcer Plugin -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-enforcer-plugin</artifactId>
@@ -190,7 +182,7 @@
                 <sonar.organization>praveenmummella</sonar.organization>
                 <sonar.projectKey>devsecops-poc</sonar.projectKey>
                 <sonar.language>java</sonar.language>
-                <sonar.coverage.jacoco.xmlReportPaths>${project.build.directory}/site/jacoco/jacoco.xml</sonar.coverage.jacoco.xmlReportPaths>
+                <sonar.coverage.jacoco.xmlReportPaths>${project.reporting.outputDirectory}/jacoco/jacoco.xml</sonar.coverage.jacoco.xmlReportPaths>
                 <sonar.java.binaries>${project.build.directory}/classes</sonar.java.binaries>
                 <sonar.java.test.binaries>${project.build.directory}/test-classes</sonar.java.test.binaries>
                 <sonar.junit.reportPaths>${project.build.directory}/surefire-reports</sonar.junit.reportPaths>
