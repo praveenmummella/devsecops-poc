@@ -1,107 +1,199 @@
-<project xmlns="http://maven.apache.org/POM/4.0.0" 
-         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 
-                             http://maven.apache.org/xsd/maven-4.0.0.xsd">
-  <modelVersion>4.0.0</modelVersion>
-
-  <groupId>com.example</groupId>
-  <artifactId>devsecops-poc</artifactId>
-  <version>0.0.1-SNAPSHOT</version>
-  <packaging>war</packaging>
-  <name>DevSecOps POC</name>
-  <description>Spring Boot DevSecOps Proof of Concept</description>
-
-  <properties>
-    <java.version>17</java.version>
-    <spring-boot.version>3.2.6</spring-boot.version>
-    <jacoco.version>0.8.10</jacoco.version>
-    <dependency-check.version>8.4.0</dependency-check.version>
-  </properties>
-
-  <parent>
-    <groupId>org.springframework.boot</groupId>
-    <artifactId>spring-boot-starter-parent</artifactId>
-    <version>${spring-boot.version}</version>
-    <relativePath/> <!-- lookup parent from repository -->
-  </parent>
-
-  <dependencies>
-    <!-- Spring Boot Dependencies -->
-    <dependency>
-      <groupId>org.springframework.boot</groupId>
-      <artifactId>spring-boot-starter-web</artifactId>
-    </dependency>
-
-    <dependency>
-      <groupId>org.springframework.boot</groupId>
-      <artifactId>spring-boot-starter-test</artifactId>
-      <scope>test</scope>
-    </dependency>
-  </dependencies>
-
-  <build>
-    <plugins>
-      <!-- Spring Boot Maven Plugin -->
-      <plugin>
-        <groupId>org.springframework.boot</groupId>
-        <artifactId>spring-boot-maven-plugin</artifactId>
-      </plugin>
-
-      <!-- JaCoCo Code Coverage Plugin -->
-      <plugin>
-        <groupId>org.jacoco</groupId>
-        <artifactId>jacoco-maven-plugin</artifactId>
-        <version>${jacoco.version}</version>
-        <executions>
-          <execution>
-            <goals>
-              <goal>prepare-agent</goal>
-            </goals>
-          </execution>
-          <execution>
-            <id>report</id>
-            <phase>verify</phase>
-            <goals>
-              <goal>report</goal>
-            </goals>
-          </execution>
-        </executions>
-      </plugin>
-
-      <!-- OWASP Dependency Check Plugin -->
-      <plugin>
-        <groupId>org.owasp</groupId>
-        <artifactId>dependency-check-maven</artifactId>
-        <version>${dependency-check.version}</version>
-        <executions>
-          <execution>
-            <goals>
-              <goal>check</goal>
-            </goals>
-          </execution>
-        </executions>
-      </plugin>
-
-      <!-- Maven WAR Plugin (optional if you deploy as WAR) -->
-      <plugin>
-        <artifactId>maven-war-plugin</artifactId>
-        <version>3.4.0</version>
-        <configuration>
-          <failOnMissingWebXml>false</failOnMissingWebXml>
-        </configuration>
-      </plugin>
-    </plugins>
-  </build>
-
-  <!-- SonarCloud Configuration -->
-  <reporting>
-    <plugins>
-      <plugin>
-        <groupId>org.sonarsource.scanner.maven</groupId>
-        <artifactId>sonar-maven-plugin</artifactId>
-        <version>3.11.0.3922</version>
-      </plugin>
-    </plugins>
-  </reporting>
-
-</project>
+<?xml version="1.0" encoding="UTF-8"?>
+ <project xmlns="http://maven.apache.org/POM/4.0.0"
+          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+     <modelVersion>4.0.0</modelVersion>
+ 
+     <parent>
+         <groupId>org.springframework.boot</groupId>
+         <artifactId>spring-boot-starter-parent</artifactId>
+         <version>3.2.6</version>
+         <relativePath/>
+     </parent>
+ 
+     <groupId>com.example</groupId>
+     <artifactId>devsecops-poc</artifactId>
+     <version>0.0.1-SNAPSHOT</version>
+     <name>devsecops-poc</name>
+     <description>DevSecOps POC for AWS CodePipeline</description>
+ 
+     <properties>
+         <java.version>17</java.version>
+         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+ 
+         <tomcat.version>10.1.20</tomcat.version>
+         <logback.version>1.4.14</logback.version>
+         <jackson-bom.version>2.16.1</jackson-bom.version>
+ 
+         <!-- Test -->
+         <junit.jupiter.version>5.10.0</junit.jupiter.version>
+         <mockito.version>5.5.0</mockito.version>
+         <rest-assured.version>5.3.2</rest-assured.version>
+ 
+         <!-- Security Tools -->
+         <jacoco.version>0.8.11</jacoco.version>
+         <owasp.dependency.check.version>8.4.0</owasp.dependency.check.version>
+         <jacoco.version>0.8.12</jacoco.version>
+         <owasp.dependency.check.version>9.0.9</owasp.dependency.check.version>
+         <sonar-maven-plugin.version>3.11.0.3922</sonar-maven-plugin.version>
+         <surefire.version>3.2.3</surefire.version>
+         <failsafe.version>3.2.3</failsafe.version>
+ @@ -106,10 +106,31 @@
+     </dependencies>
+ 
+     <build>
+         <resources>
+             <resource>
+                 <directory>src/main/resources</directory>
+                 <filtering>true</filtering>
+             </resource>
+         </resources>
+         <testResources>
+             <testResource>
+                 <directory>src/test/resources</directory>
+                 <filtering>true</filtering>
+             </testResource>
+         </testResources>
+ 
+         <plugins>
+             <plugin>
+                 <groupId>org.springframework.boot</groupId>
+                 <artifactId>spring-boot-maven-plugin</artifactId>
+                 <configuration>
+                     <excludes>
+                         <exclude>
+                             <groupId>org.projectlombok</groupId>
+                             <artifactId>lombok</artifactId>
+                         </exclude>
+                     </excludes>
+                 </configuration>
+             </plugin>
+ 
+             <plugin>
+ @@ -118,28 +139,36 @@
+                 <version>${jacoco.version}</version>
+                 <executions>
+                     <execution>
+                         <id>prepare-agent</id>
+                         <id>default-prepare-agent</id>
+                         <goals><goal>prepare-agent</goal></goals>
+                     </execution>
+                     <execution>
+                         <id>report</id>
+                         <id>default-report</id>
+                         <phase>test</phase>
+                         <goals><goal>report</goal></goals>
+                         <configuration>
+                             <outputDirectory>${project.reporting.outputDirectory}/jacoco</outputDirectory>
+                         </configuration>
+                     </execution>
+                     <execution>
+                         <id>check</id>
+                         <id>check-coverage</id>
+                         <phase>verify</phase>
+                         <goals><goal>check</goal></goals>
+                         <configuration>
+                             <rules>
+                                 <rule>
+                                 <rule implementation="org.jacoco.maven.RuleConfiguration">
+                                     <element>BUNDLE</element>
+                                     <limits>
+                                         <limit>
+                                         <limit implementation="org.jacoco.report.check.Limit">
+                                             <counter>LINE</counter>
+                                             <value>COVEREDRATIO</value>
+                                             <minimum>0.80</minimum>
+                                         </limit>
+                                         <limit implementation="org.jacoco.report.check.Limit">
+                                             <counter>BRANCH</counter>
+                                             <value>COVEREDRATIO</value>
+                                             <minimum>0.70</minimum>
+                                         </limit>
+                                     </limits>
+                                 </rule>
+                             </rules>
+ @@ -160,10 +189,13 @@
+                 </executions>
+                 <configuration>
+                     <suppressionFile>${project.basedir}/owasp-suppressions.xml</suppressionFile>
+                     <failBuildOnCVSS>11</failBuildOnCVSS>
+                     <cveValidForHours>24</cveValidForHours>
+                     <retireJsAnalyzerEnabled>false</retireJsAnalyzerEnabled>
+                     <failBuildOnCVSS>8</failBuildOnCVSS>
+                     <cveValidForHours>12</cveValidForHours>
+                     <formats>HTML,XML,JSON</formats>
+                     <skipProvidedScope>true</skipProvidedScope>
+                     <skipRuntimeScope>true</skipRuntimeScope>
+                     <skipTestScope>true</skipTestScope>
+                     <analysisTimeout>600</analysisTimeout>
+                 </configuration>
+             </plugin>
+ 
+ @@ -216,34 +248,62 @@
+                 <artifactId>maven-compiler-plugin</artifactId>
+                 <version>3.11.0</version>
+                 <configuration>
+                     <source>${java.version}</source>
+                     <target>${java.version}</target>
+                     <compilerArgs><arg>-parameters</arg></compilerArgs>
+                     <release>${java.version}</release>
+                     <compilerArgs>
+                         <arg>-parameters</arg>
+                         <arg>-Xlint:all</arg>
+                     </compilerArgs>
+                     <showWarnings>true</showWarnings>
+                     <showDeprecation>true</showDeprecation>
+                 </configuration>
+             </plugin>
+ 
+             <plugin>
+                 <groupId>org.apache.maven.plugins</groupId>
+                 <artifactId>maven-enforcer-plugin</artifactId>
+                 <version>3.4.1</version>
+                 <executions>
+                     <execution>
+                         <id>enforce-versions</id>
+                         <goals><goal>enforce</goal></goals>
+                         <configuration>
+                             <rules>
+                                 <requireJavaVersion>
+                                     <version>[17,18)</version>
+                                 </requireJavaVersion>
+                                 <requireMavenVersion>
+                                     <version>[3.9.0,)</version>
+                                 </requireMavenVersion>
+                             </rules>
+                         </configuration>
+                     </execution>
+                 </executions>
+             </plugin>
+         </plugins>
+     </build>
+ 
+     <profiles>
+         <profile>
+             <id>sonar</id>
+             <activation><activeByDefault>true</activeByDefault></activation>
+             <activation>
+                 <activeByDefault>true</activeByDefault>
+             </activation>
+             <properties>
+                 <sonar.host.url>https://sonarcloud.io</sonar.host.url>
+                 <sonar.organization>praveenmummella</sonar.organization>
+                 <sonar.projectKey>devsecops-poc</sonar.projectKey>
+                 <sonar.coverage.jacoco.xmlReportPaths>${project.build.directory}/site/jacoco/jacoco.xml</sonar.coverage.jacoco.xmlReportPaths>
+                 <sonar.language>java</sonar.language>
+                 <sonar.java.binaries>${project.build.directory}/classes</sonar.java.binaries>
+                 <sonar.java.test.binaries>${project.build.directory}/test-classes</sonar.java.test.binaries>
+                 <sonar.junit.reportPaths>${project.build.directory}/surefire-reports</sonar.junit.reportPaths>
+                 <sonar.coverage.exclusions>
+                     **/model/**,
+                     **/config/**,
+                     **/exception/**,
+                     **/dto/**
+                 </sonar.coverage.exclusions>
+             </properties>
+         </profile>
+     </profiles>
+ </project>
