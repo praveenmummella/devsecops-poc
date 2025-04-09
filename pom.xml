@@ -137,6 +137,13 @@
                 </configuration>
             </plugin>
 
+            <!-- SonarQube / SonarCloud -->
+            <plugin>
+                <groupId>org.sonarsource.scanner.maven</groupId>
+                <artifactId>sonar-maven-plugin</artifactId>
+                <version>${sonar-maven-plugin.version}</version>
+            </plugin>
+
             <!-- Compiler Plugin -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -204,5 +211,4 @@
             </properties>
         </profile>
     </profiles>
-
 </project>
