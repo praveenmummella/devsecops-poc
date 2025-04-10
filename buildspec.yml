@@ -35,7 +35,8 @@ phases:
       "echo 'Pre-build phase started...'",
       "echo 'Project Key: $SONAR_PROJECT_KEY'",
       "echo 'Organization: $SONAR_ORGANIZATION'",
-      "mkdir -p target/site/jacoco"
+      "mkdir -p target/site/jacoco",
+      "mkdir -p target"  # Ensure target directory exists for dependency check
     ]
 
   build:
@@ -43,26 +44,38 @@ phases:
       "echo 'Build phase started...'",
       "mvn clean package",
       "mvn jacoco:report",
-      "mvn org.owasp:dependency-check-maven:check -Dnvd.api.key=$NVD_API_KEY -Dnvd.api.delay=6000 -DfailOnError=$OWASP_FAIL_ON_ERROR || echo 'Dependency check completed with warnings'",
+      "mvn org.owasp:dependency-check-maven:check -Dnvd.api.key=$NVD_API_KEY -Dnvd.api.delay=6000 -DfailOnError=$OWASP_FAIL_ON_ERROR -Dodc.outputDirectory=target || echo 'Dependency check completed with warnings'",
       "mvn sonar:sonar -Dsonar.projectKey=$SONAR_PROJECT_KEY -Dsonar.organization=$SONAR_ORGANIZATION -Dsonar.login=$SONAR_TOKEN || echo 'Sonar analysis completed with warnings'"
     ]
 
   post_build:
     commands: [
       "echo 'Post-build phase started...'",
-      "echo 'Checking reports...'",
-      # Modified S3 upload commands to remove ACLs
-      "[ -d $JACOCO_REPORT_DIR ] && aws s3 cp $JACOCO_REPORT_DIR s3://$REPORT_BUCKET/reports/jacoco/ --recursive || echo 'JaCoCo report not found'",
-      "[ -f $DEPENDENCY_CHECK_REPORT_PATH ] && aws s3 cp $DEPENDENCY_CHECK_REPORT_PATH s3://$REPORT_BUCKET/reports/ || echo 'Dependency check report not found'",
-      # Fixed if-then-fi syntax for SNS notifications
+      "echo 'Uploading reports...'",
+      # Jacoco report upload
+      "if [ -d \"$JACOCO_REPORT_DIR\" ]; then",
+      "  aws s3 cp \"$JACOCO_REPORT_DIR\" s3://$REPORT_BUCKET/reports/jacoco/ --recursive",
+      "  echo 'JaCoCo report uploaded'",
+      "else",
+      "  echo 'JaCoCo report not found'",
+      "fi",
+      # Dependency check report upload
+      "if [ -f \"$DEPENDENCY_CHECK_REPORT_PATH\" ]; then",
+      "  aws s3 cp \"$DEPENDENCY_CHECK_REPORT_PATH\" s3://$REPORT_BUCKET/reports/",
+      "  echo 'Dependency check report uploaded'",
+      "else",
+      "  echo 'Dependency check report not found'",
+      "  echo 'Checking alternative location: target/dependency-check-report.html'",
+      "  ls -la target/",
+      "fi",
+      # SNS notification
       "if [ \"$CODEBUILD_BUILD_SUCCEEDING\" -eq 1 ]; then",
       "  aws sns publish --topic-arn \"$SNS_TOPIC_ARN\" --subject \"Build Success\" --message \"Build succeeded for project $CODEBUILD_BUILD_ID\"",
       "  echo 'Success notification sent'",
       "else",
       "  aws sns publish --topic-arn \"$SNS_TOPIC_ARN\" --subject \"Build Failed\" --message \"Build failed for project $CODEBUILD_BUILD_ID. Check logs: $CODEBUILD_BUILD_URL\"",
       "  echo 'Failure notification sent'",
-      "fi",
-      "echo 'Build completed with status: $CODEBUILD_BUILD_SUCCEEDING'"
+      "fi"
     ]
 
 artifacts:
