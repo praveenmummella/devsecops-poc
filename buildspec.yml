@@ -7,6 +7,7 @@ env:
     JACOCO_REPORT_DIR: target/site/jacoco
     DEPENDENCY_CHECK_REPORT_PATH: target/dependency-check-report.html
     OWASP_FAIL_ON_ERROR: "false"
+    SNS_TOPIC_ARN: "arn:aws:sns:us-east-1:310188667383:build-notifications:700a7139-624c-4914-a854-f2b57e2a9805"
   parameter-store:
     SONAR_TOKEN: /devsecops/sonar/token
     SONAR_PROJECT_KEY: /devsecops/sonar/projectKey
@@ -52,8 +53,13 @@ phases:
       "echo 'Checking reports...'",
       "[ -d $JACOCO_REPORT_DIR ] && aws s3 cp $JACOCO_REPORT_DIR s3://$REPORT_BUCKET/reports/jacoco/ --recursive --acl public-read || echo 'JaCoCo report not found'",
       "[ -f $DEPENDENCY_CHECK_REPORT_PATH ] && aws s3 cp $DEPENDENCY_CHECK_REPORT_PATH s3://$REPORT_BUCKET/reports/ --acl public-read || echo 'Dependency check report not found'",
-      "echo 'Sending email notification...'",
-      "if [ $? -eq 0 ]; then mvn exec:exec@send-success-email; else mvn exec:exec@send-failure-email; fi"
+      "if [ $CODEBUILD_BUILD_SUCCEEDING -eq 1 ]; then",
+      "  aws sns publish --topic-arn $SNS_TOPIC_ARN --subject 'Build Success' --message 'Build succeeded for project $CODEBUILD_BUILD_ID'",
+      "  echo 'Success notification sent'",
+      "else",
+      "  aws sns publish --topic-arn $SNS_TOPIC_ARN --subject 'Build Failed' --message 'Build failed for project $CODEBUILD_BUILD_ID. Check logs: $CODEBUILD_BUILD_URL'",
+      "  echo 'Failure notification sent'",
+      "fi"
     ]
 
 artifacts:
