@@ -36,7 +36,7 @@ phases:
       "echo 'Project Key: $SONAR_PROJECT_KEY'",
       "echo 'Organization: $SONAR_ORGANIZATION'",
       "mkdir -p target/site/jacoco",
-      "mkdir -p target"  # Ensure target directory exists for dependency check
+      "mkdir -p target"
     ]
 
   build:
@@ -52,30 +52,11 @@ phases:
     commands: [
       "echo 'Post-build phase started...'",
       "echo 'Uploading reports...'",
-      # Jacoco report upload
-      "if [ -d \"$JACOCO_REPORT_DIR\" ]; then",
-      "  aws s3 cp \"$JACOCO_REPORT_DIR\" s3://$REPORT_BUCKET/reports/jacoco/ --recursive",
-      "  echo 'JaCoCo report uploaded'",
-      "else",
-      "  echo 'JaCoCo report not found'",
-      "fi",
-      # Dependency check report upload
-      "if [ -f \"$DEPENDENCY_CHECK_REPORT_PATH\" ]; then",
-      "  aws s3 cp \"$DEPENDENCY_CHECK_REPORT_PATH\" s3://$REPORT_BUCKET/reports/",
-      "  echo 'Dependency check report uploaded'",
-      "else",
-      "  echo 'Dependency check report not found'",
-      "  echo 'Checking alternative location: target/dependency-check-report.html'",
-      "  ls -la target/",
-      "fi",
+      # Single-line if statements for CodeBuild compatibility
+      "if [ -d \"$JACOCO_REPORT_DIR\" ]; then aws s3 cp \"$JACOCO_REPORT_DIR\" s3://$REPORT_BUCKET/reports/jacoco/ --recursive && echo 'JaCoCo report uploaded' || echo 'JaCoCo upload failed'; else echo 'JaCoCo report not found'; fi",
+      "if [ -f \"$DEPENDENCY_CHECK_REPORT_PATH\" ]; then aws s3 cp \"$DEPENDENCY_CHECK_REPORT_PATH\" s3://$REPORT_BUCKET/reports/ && echo 'Dependency check report uploaded' || echo 'Dependency check upload failed'; else echo 'Dependency check report not found'; ls -la target/; fi",
       # SNS notification
-      "if [ \"$CODEBUILD_BUILD_SUCCEEDING\" -eq 1 ]; then",
-      "  aws sns publish --topic-arn \"$SNS_TOPIC_ARN\" --subject \"Build Success\" --message \"Build succeeded for project $CODEBUILD_BUILD_ID\"",
-      "  echo 'Success notification sent'",
-      "else",
-      "  aws sns publish --topic-arn \"$SNS_TOPIC_ARN\" --subject \"Build Failed\" --message \"Build failed for project $CODEBUILD_BUILD_ID. Check logs: $CODEBUILD_BUILD_URL\"",
-      "  echo 'Failure notification sent'",
-      "fi"
+      "if [ \"$CODEBUILD_BUILD_SUCCEEDING\" -eq 1 ]; then aws sns publish --topic-arn \"$SNS_TOPIC_ARN\" --subject \"Build Success\" --message \"Build succeeded for project $CODEBUILD_BUILD_ID\" && echo 'Success notification sent'; else aws sns publish --topic-arn \"$SNS_TOPIC_ARN\" --subject \"Build Failed\" --message \"Build failed for project $CODEBUILD_BUILD_ID. Check logs: $CODEBUILD_BUILD_URL\" && echo 'Failure notification sent'; fi"
     ]
 
 artifacts:
