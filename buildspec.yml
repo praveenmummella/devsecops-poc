@@ -20,8 +20,10 @@ phases:
     commands: [
       "echo 'Setting up Ubuntu environment...'",
       "apt-get update -y",
-      "apt-get install -y maven unzip docker.io",
-      "service docker start",
+      "apt-get install -y maven unzip",
+      "curl -fsSL https://get.docker.com -o get-docker.sh",
+      "sh get-docker.sh",
+      "usermod -aG docker $USER",
       "curl -sSLo sonar-scanner.zip https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-5.0.1.3006.zip",
       "unzip sonar-scanner.zip",
       "mv sonar-scanner-* sonar-scanner",
