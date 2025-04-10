@@ -51,15 +51,18 @@ phases:
     commands: [
       "echo 'Post-build phase started...'",
       "echo 'Checking reports...'",
-      "[ -d $JACOCO_REPORT_DIR ] && aws s3 cp $JACOCO_REPORT_DIR s3://$REPORT_BUCKET/reports/jacoco/ --recursive --acl public-read || echo 'JaCoCo report not found'",
-      "[ -f $DEPENDENCY_CHECK_REPORT_PATH ] && aws s3 cp $DEPENDENCY_CHECK_REPORT_PATH s3://$REPORT_BUCKET/reports/ --acl public-read || echo 'Dependency check report not found'",
-      "if [ $CODEBUILD_BUILD_SUCCEEDING -eq 1 ]; then",
-      "  aws sns publish --topic-arn $SNS_TOPIC_ARN --subject 'Build Success' --message 'Build succeeded for project $CODEBUILD_BUILD_ID'",
+      # Modified S3 upload commands to remove ACLs
+      "[ -d $JACOCO_REPORT_DIR ] && aws s3 cp $JACOCO_REPORT_DIR s3://$REPORT_BUCKET/reports/jacoco/ --recursive || echo 'JaCoCo report not found'",
+      "[ -f $DEPENDENCY_CHECK_REPORT_PATH ] && aws s3 cp $DEPENDENCY_CHECK_REPORT_PATH s3://$REPORT_BUCKET/reports/ || echo 'Dependency check report not found'",
+      # Fixed if-then-fi syntax for SNS notifications
+      "if [ \"$CODEBUILD_BUILD_SUCCEEDING\" -eq 1 ]; then",
+      "  aws sns publish --topic-arn \"$SNS_TOPIC_ARN\" --subject \"Build Success\" --message \"Build succeeded for project $CODEBUILD_BUILD_ID\"",
       "  echo 'Success notification sent'",
       "else",
-      "  aws sns publish --topic-arn $SNS_TOPIC_ARN --subject 'Build Failed' --message 'Build failed for project $CODEBUILD_BUILD_ID. Check logs: $CODEBUILD_BUILD_URL'",
+      "  aws sns publish --topic-arn \"$SNS_TOPIC_ARN\" --subject \"Build Failed\" --message \"Build failed for project $CODEBUILD_BUILD_ID. Check logs: $CODEBUILD_BUILD_URL\"",
       "  echo 'Failure notification sent'",
-      "fi"
+      "fi",
+      "echo 'Build completed with status: $CODEBUILD_BUILD_SUCCEEDING'"
     ]
 
 artifacts:
