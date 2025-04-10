@@ -7,7 +7,7 @@ env:
     JACOCO_REPORT_DIR: target/site/jacoco
     DEPENDENCY_CHECK_REPORT_PATH: target/dependency-check-report.html
     OWASP_FAIL_ON_ERROR: "false"
-    SNS_TOPIC_ARN: "arn:aws:sns:us-east-1:310188667383:build-notifications:700a7139-624c-4914-a854-f2b57e2a9805"
+    SNS_TOPIC_ARN: "arn:aws:sns:us-east-1:310188667383:build-notifications"
   parameter-store:
     SONAR_TOKEN: /devsecops/sonar/token
     SONAR_PROJECT_KEY: /devsecops/sonar/projectKey
@@ -44,7 +44,8 @@ phases:
       "echo 'Build phase started...'",
       "mvn clean package",
       "mvn jacoco:report",
-      "mvn org.owasp:dependency-check-maven:check -Dnvd.api.key=$NVD_API_KEY -Dnvd.api.delay=6000 -DfailOnError=$OWASP_FAIL_ON_ERROR -Dodc.outputDirectory=target || echo 'Dependency check completed with warnings'",
+      # Modified dependency-check command to ensure report generation
+      "mvn org.owasp:dependency-check-maven:aggregate -Dnvd.api.key=$NVD_API_KEY -Dnvd.api.delay=6000 -DfailOnError=$OWASP_FAIL_ON_ERROR -Dodc.outputDirectory=target -Dodc.outputFileName=dependency-check-report.html || echo 'Dependency check completed with warnings'",
       "mvn sonar:sonar -Dsonar.projectKey=$SONAR_PROJECT_KEY -Dsonar.organization=$SONAR_ORGANIZATION -Dsonar.login=$SONAR_TOKEN || echo 'Sonar analysis completed with warnings'"
     ]
 
@@ -52,11 +53,12 @@ phases:
     commands: [
       "echo 'Post-build phase started...'",
       "echo 'Uploading reports...'",
-      # Single-line if statements for CodeBuild compatibility
+      # Jacoco report upload
       "if [ -d \"$JACOCO_REPORT_DIR\" ]; then aws s3 cp \"$JACOCO_REPORT_DIR\" s3://$REPORT_BUCKET/reports/jacoco/ --recursive && echo 'JaCoCo report uploaded' || echo 'JaCoCo upload failed'; else echo 'JaCoCo report not found'; fi",
-      "if [ -f \"$DEPENDENCY_CHECK_REPORT_PATH\" ]; then aws s3 cp \"$DEPENDENCY_CHECK_REPORT_PATH\" s3://$REPORT_BUCKET/reports/ && echo 'Dependency check report uploaded' || echo 'Dependency check upload failed'; else echo 'Dependency check report not found'; ls -la target/; fi",
-      # SNS notification
-      "if [ \"$CODEBUILD_BUILD_SUCCEEDING\" -eq 1 ]; then aws sns publish --topic-arn \"$SNS_TOPIC_ARN\" --subject \"Build Success\" --message \"Build succeeded for project $CODEBUILD_BUILD_ID\" && echo 'Success notification sent'; else aws sns publish --topic-arn \"$SNS_TOPIC_ARN\" --subject \"Build Failed\" --message \"Build failed for project $CODEBUILD_BUILD_ID. Check logs: $CODEBUILD_BUILD_URL\" && echo 'Failure notification sent'; fi"
+      # Dependency check report upload with explicit path
+      "if [ -f \"target/dependency-check-report.html\" ]; then aws s3 cp target/dependency-check-report.html s3://$REPORT_BUCKET/reports/ && echo 'Dependency check report uploaded' || echo 'Dependency check upload failed'; else echo 'Dependency check report not found'; ls -la target/; fi",
+      # SNS notification with simplified topic ARN
+      "if [ \"$CODEBUILD_BUILD_SUCCEEDING\" -eq 1 ]; then aws sns publish --topic-arn \"$SNS_TOPIC_ARN\" --message \"Build succeeded: $CODEBUILD_BUILD_ID\" && echo 'Success notification sent'; else aws sns publish --topic-arn \"$SNS_TOPIC_ARN\" --message \"Build failed: $CODEBUILD_BUILD_ID - $CODEBUILD_BUILD_URL\" && echo 'Failure notification sent'; fi"
     ]
 
 artifacts:
